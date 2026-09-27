@@ -32,6 +32,12 @@ constexpr Rgb kInTuneZone{18, 54, 29};
 constexpr Rgb kAxisTick{85, 85, 85};
 constexpr Rgb kAxisLabel{138, 138, 138};
 
+// Альбомные ориентации: в kRotation изображение стоит правильно, когда
+// KEY1 справа от экрана (проверено на плате), kFlippedRotation — та же
+// картинка, повёрнутая на 180°.
+constexpr uint8_t kRotation = 1;
+constexpr uint8_t kFlippedRotation = 3;
+
 // --- геометрия под экран 240x135 набок ---
 
 constexpr int kReadoutX = 5;
@@ -68,7 +74,7 @@ void Renderer::begin(const AnalyzerConfig &config) {
     maxHz_ = config.maxHz;
     bandCount_ = config.bandCount;
 
-    M5.Display.setRotation(1); // набок: 240 в ширину, 135 в высоту
+    M5.Display.setRotation(kRotation); // набок: 240 в ширину, 135 в высоту
     M5.Display.fillScreen(TFT_BLACK);
 
     canvas_.setColorDepth(16);
@@ -92,6 +98,15 @@ void Renderer::draw(const BarBallistics &bars, const Spectrum &spectrum,
     }
 
     canvas_.pushSprite(0, 0);
+}
+
+bool Renderer::setFlipped(bool flipped) {
+    if (flipped == flipped_) {
+        return false;
+    }
+    flipped_ = flipped;
+    M5.Display.setRotation(flipped ? kFlippedRotation : kRotation);
+    return true;
 }
 
 int Renderer::xForHz(float hz) const {

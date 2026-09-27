@@ -4,6 +4,7 @@
 #include "BarBallistics.h"
 #include "DisplayTimeout.h"
 #include "FrequencyReadout.h"
+#include "Orientation.h"
 #include "Renderer.h"
 #include "SpectrumAnalyzer.h"
 
@@ -33,6 +34,7 @@ SpectrumAnalyzer analyzer(makeAnalyzerConfig());
 BarBallistics bars(analyzer.config().bandCount, SpectrumAnalyzer::kFloorDb);
 Renderer renderer;
 DisplayTimeout displayTimeout;
+Orientation orientation;
 
 const Spectrum *latest = nullptr;
 Readout readout;
@@ -63,6 +65,8 @@ void setDisplayAwake(bool awake) {
         M5.Display.wakeup();
         M5.Display.setBrightness(kBrightness);
         needsPaint = true;
+        // Пока экран спал, прибор могли перевернуть.
+        orientation.reset();
     } else {
         // Подсветка — главный потребитель, гасим её отдельно от
         // усыпления самой панели.
@@ -161,6 +165,17 @@ void loop() {
     bool signal = false;
 
     if (fresh) {
+        // Акселерометр — раз на кадр анализа, около 31 раза в секунду:
+        // loop() крутится почти каждую миллисекунду, а решению Orientation
+        // всё равно нужно продержаться 400 мс. На паузе тоже: замороженный
+        // кадр перерисуется перевёрнутым.
+        float ax, ay, az;
+        if (displayAwake && M5.Imu.getAccel(&ax, &ay, &az)) {
+            if (renderer.setFlipped(orientation.update(now, ax, ay, az))) {
+                needsPaint = true;
+            }
+        }
+
         const int16_t *window = audio.window();
         if (!frozen) {
             const uint32_t start = micros();

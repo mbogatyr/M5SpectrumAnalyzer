@@ -33,6 +33,12 @@ class Renderer {
     void draw(const BarBallistics &bars, const Spectrum &spectrum,
               const Readout &readout, float bottomDb, bool frozen);
 
+    // Переворачивает картинку на 180°, когда прибор повернули другой
+    // длинной стороной вниз. Спрайт 240x135 подходит к обеим альбомным
+    // ориентациям. Возвращает true, если ориентация сменилась и кадр надо
+    // перерисовать.
+    bool setFlipped(bool flipped);
+
   private:
     void paintReadout(const Readout &readout);
     void paintTuner(const Readout &readout);
@@ -47,4 +53,5 @@ class Renderer {
     float minHz_ = 50.0f;
     float maxHz_ = 8000.0f;
     size_t bandCount_ = 48;
+    bool flipped_ = false;
 };
