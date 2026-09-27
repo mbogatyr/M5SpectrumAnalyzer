@@ -6,7 +6,7 @@ BarBallistics::BarBallistics(size_t bandCount, float floorDb,
       bands_(bandCount, Band{floorDb, floorDb, 0, floorDb}) {}
 
 void BarBallistics::update(const float *bandDb, uint32_t nowMs) {
-    // Беззнаковое вычитание корректно переживает переполнение millis().
+    // Unsigned subtraction handles millis() wraparound correctly.
     const float dtSec = started_ ? (nowMs - lastMs_) / 1000.0f : 0.0f;
     started_ = true;
     lastMs_ = nowMs;
@@ -23,8 +23,8 @@ void BarBallistics::update(const float *bandDb, uint32_t nowMs) {
         }
         band.level = level;
 
-        // Колпачок — функция от времени с момента последнего подъёма:
-        // висит capHoldMs, потом равномерно падает.
+        // The peak cap is a function of the time since it was last raised:
+        // it holds for capHoldMs, then falls at a constant rate.
         const uint32_t sinceSet = nowMs - band.capSetMs;
         const float fallSec = (sinceSet > config_.capHoldMs)
                                   ? (sinceSet - config_.capHoldMs) / 1000.0f

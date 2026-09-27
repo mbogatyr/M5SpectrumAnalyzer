@@ -2,9 +2,9 @@
 
 #include "BlockRing.h"
 
-// Блоки по 3 отсчёта в кольце из 7. Тест играет роль микрофона: пишет в
-// каждый блок его порядковый номер, помноженный на 10, плюс номер
-// отсчёта — так по любому числу видно, откуда оно взялось.
+// Blocks of 3 samples in a ring of 7. The test plays the microphone: it
+// writes into each block its sequence number times 10 plus the sample
+// index, so every value shows where it came from.
 
 static const size_t kLen = 3;
 static const size_t kCount = 7;
@@ -35,7 +35,7 @@ void test_write_blocks_walk_the_ring_and_wrap(void) {
     TEST_ASSERT_EQUAL_PTR(first, ring.nextWriteBlock());
 }
 
-// Два последних поставленных блока ещё пишутся.
+// The two most recently queued blocks are still being written.
 void test_blocks_in_the_queue_are_not_complete(void) {
     BlockRing ring(kLen, kCount);
 
@@ -50,12 +50,12 @@ void test_window_is_refused_until_enough_blocks_are_complete(void) {
     BlockRing ring(kLen, kCount);
     int16_t window[4 * kLen];
 
-    queueBlocks(ring, 0, 5); // готовы блоки 0..2
+    queueBlocks(ring, 0, 5); // blocks 0..2 are complete
 
     TEST_ASSERT_FALSE(ring.copyLatest(window, 4));
 }
 
-// Поставлено 0..5, пишутся 4 и 5, готовы 0..3.
+// Queued 0..5; 4 and 5 are still being written, 0..3 are complete.
 void test_window_holds_the_latest_complete_blocks_in_order(void) {
     BlockRing ring(kLen, kCount);
     int16_t window[4 * kLen];
@@ -68,9 +68,9 @@ void test_window_holds_the_latest_complete_blocks_in_order(void) {
     TEST_ASSERT_EQUAL_INT16_ARRAY(want, window, 4 * kLen);
 }
 
-// Поставлено 0..9, готовы 0..7. Блоки 4, 5, 6 лежат в хвосте кольца,
-// блок 7 — снова в первом слоте. Окно должно идти по времени, а не по
-// адресам.
+// Queued 0..9, complete 0..7. Blocks 4, 5, 6 sit at the end of the ring,
+// block 7 is back in the first slot. The window must follow time order, not
+// address order.
 void test_window_stays_chronological_across_the_ring_end(void) {
     BlockRing ring(kLen, kCount);
     int16_t window[4 * kLen];

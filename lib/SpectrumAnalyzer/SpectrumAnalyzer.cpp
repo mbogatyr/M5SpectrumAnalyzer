@@ -8,7 +8,7 @@ namespace {
 
 const double kTwoPi = 6.283185307179586;
 
-// Квадрат модуля ниже этого порога даёт kFloorDb и не уходит в -inf.
+// A squared magnitude below this threshold gives kFloorDb, not -inf.
 const float kTinyPower = 1e-30f;
 
 } // namespace
@@ -24,13 +24,13 @@ SpectrumAnalyzer::SpectrumAnalyzer(const AnalyzerConfig &config)
         window_[i] = static_cast<float>(0.5 - 0.5 * cos(kTwoPi * i / n));
     }
 
-    // Синус амплитуды A после окна Ханна (усиление 0.5) даёт в своём бине
-    // модуль A*N/4. Отсчёты уже поделены на 32768, так что полная шкала
-    // превращается в N/4, и её надо вычесть, чтобы получить 0 дБ.
+    // A sine of amplitude A after the Hann window (gain 0.5) has magnitude
+    // A*N/4 in its bin. Samples are already divided by 32768, so full scale
+    // becomes N/4, which has to be subtracted to get 0 dB.
     dbOffset_ = static_cast<float>(-20.0 * log10(n / 4.0));
 
-    // Параболе нужны соседи с обеих сторон, а поиск вершины заходит на
-    // бин ниже minBin_, поэтому minBin_ не меньше 2.
+    // The parabola needs neighbors on both sides, and the summit (local
+    // maximum) search reaches one bin below minBin_, so minBin_ is at least 2.
     minBin_ = static_cast<size_t>(ceilf(config.minHz / binHz_));
     if (minBin_ < 2) {
         minBin_ = 2;
@@ -40,9 +40,9 @@ SpectrumAnalyzer::SpectrumAnalyzer(const AnalyzerConfig &config)
         maxBin_ = n / 2 - 1;
     }
 
-    // Полоса i охватывает частоты [e_i, e_{i+1}), где e_i растут
-    // геометрически от minHz до maxHz. В неё входят бины, чья частота
-    // попала в этот промежуток.
+    // Band i covers frequencies [e_i, e_{i+1}), where e_i grow
+    // geometrically from minHz to maxHz. It contains the bins whose
+    // frequencies fall within that interval.
     const double ratio = static_cast<double>(config.maxHz) / config.minHz;
     for (size_t i = 0; i < config.bandCount; ++i) {
         const double lo =
@@ -52,9 +52,9 @@ SpectrumAnalyzer::SpectrumAnalyzer(const AnalyzerConfig &config)
         size_t first = static_cast<size_t>(ceil(lo / binHz_));
         size_t last = static_cast<size_t>(ceil(hi / binHz_)) - 1;
 
-        // На низах полоса бывает уже шага бина и не содержит ни одного.
-        // Тогда она показывает ближайший к своей середине бин, иначе в
-        // столбиках появились бы вечные провалы.
+        // At the low end a band can be narrower than the bin spacing and
+        // contain no bins at all. It then shows the bin nearest its center;
+        // otherwise the bars would have permanent dips.
         if (first > last) {
             first = last = static_cast<size_t>(lround(sqrt(lo * hi) / binHz_));
         }
@@ -93,11 +93,11 @@ const Spectrum &SpectrumAnalyzer::analyze(const int16_t *samples) {
 }
 
 void SpectrumAnalyzer::findPeak() {
-    // Пик — самая высокая вершина, а не самый громкий бин: у края
-    // диапазона самым громким может оказаться склон тона, который лежит
-    // снаружи, и парабола через склон даёт выдуманную частоту. Поиск
-    // начинается на бин раньше minBin_, чтобы тон у самой границы, чья
-    // вершина приходится на соседний бин, не потерялся.
+    // The peak is the highest summit, not the loudest bin: at the edge of
+    // the range the loudest bin may be on the slope of a tone lying outside
+    // it, and a parabola through a slope gives a spurious frequency. The
+    // search starts one bin below minBin_ so that a tone right at the
+    // boundary, whose summit falls on the neighboring bin, is not lost.
     bool found = false;
     size_t k = minBin_;
     for (size_t i = minBin_ - 1; i <= maxBin_; ++i) {
@@ -109,9 +109,9 @@ void SpectrumAnalyzer::findPeak() {
         }
     }
 
-    // Парабола через три точки в децибелах. На вершине сдвиг не выходит
-    // за ±0.5 бина. Для окна Ханна систематическая ошибка такой оценки —
-    // сотые доли бина, то есть доли герца.
+    // Parabola through three points in decibels. At a summit the offset stays
+    // within ±0.5 bin. For the Hann window the systematic error of this
+    // estimate is hundredths of a bin, i.e. fractions of a hertz.
     const float a = binDb_[k - 1];
     const float b = binDb_[k];
     const float c = binDb_[k + 1];
@@ -127,11 +127,12 @@ void SpectrumAnalyzer::findPeak() {
     spectrum_.peakBand = bandForHz(spectrum_.peakHz);
 }
 
-// Высота пика над медианой бинов, отстоящих от него на 4-12 бинов.
-// Ближе не берём: главный лепесток окна Ханна занимает ±2 бина и ещё
-// немного на отстройку. Дальше тоже: при основном тоне от 110 Гц (14
-// бинов) туда попали бы соседние гармоники голоса. Медиана, а не
-// среднее, чтобы одна такая гармоника всё же не подняла фон.
+// Height of the peak above the median of the bins 4-12 bins away from it.
+// Not closer: the Hann window's main lobe spans ±2 bins, plus a little
+// clearance. Not farther either: for voices with a fundamental of 110 Hz
+// (14 bins) and up, the neighboring harmonics would fall in. The median
+// rather than the mean, so that a single such harmonic, if one does get
+// in, cannot raise the background.
 float SpectrumAnalyzer::prominenceDb(size_t peakBin) const {
     const size_t kNear = 4;
     const size_t kFar = 12;

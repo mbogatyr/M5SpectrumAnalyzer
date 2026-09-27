@@ -6,7 +6,7 @@
 
 namespace {
 
-// --- цвет ---
+// --- color ---
 
 struct Rgb {
     uint8_t r, g, b;
@@ -23,7 +23,7 @@ constexpr Rgb kCyan{58, 214, 255};
 constexpr Rgb kAmber{255, 176, 0};
 constexpr Rgb kText{255, 255, 255};
 constexpr Rgb kMuted{154, 154, 154};
-constexpr Rgb kDim{74, 74, 74};      // цифры в тишине
+constexpr Rgb kDim{74, 74, 74};      // digits during silence
 constexpr Rgb kCapColor{216, 216, 216};
 constexpr Rgb kScaleLine{85, 85, 85};
 constexpr Rgb kScaleTick{102, 102, 102};
@@ -32,13 +32,13 @@ constexpr Rgb kInTuneZone{18, 54, 29};
 constexpr Rgb kAxisTick{85, 85, 85};
 constexpr Rgb kAxisLabel{138, 138, 138};
 
-// Альбомные ориентации: в kRotation изображение стоит правильно, когда
-// KEY1 справа от экрана (проверено на плате), kFlippedRotation — та же
-// картинка, повёрнутая на 180°.
+// Landscape orientations: in kRotation the image is upright when KEY1 is
+// to the right of the screen (verified on the board); kFlippedRotation is
+// the same image rotated 180°.
 constexpr uint8_t kRotation = 1;
 constexpr uint8_t kFlippedRotation = 3;
 
-// --- геометрия под экран 240x135 набок ---
+// --- geometry for the 240x135 screen on its side ---
 
 constexpr int kReadoutX = 5;
 constexpr int kReadoutBaseline = 28;
@@ -47,14 +47,14 @@ constexpr int kTunerLeft = 134;
 constexpr int kTunerRight = 234;
 constexpr int kNoteBaseline = 14;
 constexpr int kScaleY = 27;
-constexpr int kInTuneCents = 5;  // зелёная зона и зелёный цвет
-constexpr int kCloseCents = 20;  // до этого — жёлтый, дальше красный
+constexpr int kInTuneCents = 5;  // green zone and green color
+constexpr int kCloseCents = 20;  // yellow up to this, red beyond
 
 constexpr int kBarsTop = 42;
 constexpr int kBarsBottom = 122;
 constexpr int kBarsHeight = kBarsBottom - kBarsTop;
-constexpr int kSegmentH = 2;     // «светодиод» столбика
-constexpr int kSegmentPitch = 3; // сегмент плюс зазор
+constexpr int kSegmentH = 2;     // one "LED" of a bar
+constexpr int kSegmentPitch = 3; // segment plus gap
 
 constexpr int kAxisTickY = 123;
 constexpr int kAxisBaseline = 133;
@@ -74,11 +74,11 @@ void Renderer::begin(const AnalyzerConfig &config) {
     maxHz_ = config.maxHz;
     bandCount_ = config.bandCount;
 
-    M5.Display.setRotation(kRotation); // набок: 240 в ширину, 135 в высоту
+    M5.Display.setRotation(kRotation); // on its side: 240 wide, 135 tall
     M5.Display.fillScreen(TFT_BLACK);
 
     canvas_.setColorDepth(16);
-    canvas_.setPsram(true); // 240*135*2 = 65 КБ, на StickS3 есть 8 МБ PSRAM
+    canvas_.setPsram(true); // 240*135*2 = 65 KB; StickS3 has 8 MB of PSRAM
     canvas_.createSprite(M5.Display.width(), M5.Display.height());
 }
 
@@ -114,7 +114,7 @@ int Renderer::xForHz(float hz) const {
                             logf(maxHz_ / minHz_));
 }
 
-// Крупная частота слева сверху и маленькое «Hz» за ней.
+// Large frequency at the top left, followed by a small "Hz".
 void Renderer::paintReadout(const Readout &readout) {
     const char *text = readout.valid ? readout.hz : "---.-";
 
@@ -129,7 +129,7 @@ void Renderer::paintReadout(const Readout &readout) {
     canvas_.drawString("Hz", kReadoutX + width + 4, kReadoutBaseline);
 }
 
-// Нота, центы и шкала ±50 центов со стрелкой — справа сверху.
+// Note, cents and a ±50-cent scale with a needle, at the top right.
 void Renderer::paintTuner(const Readout &readout) {
     const int center = (kTunerLeft + kTunerRight) / 2;
     const int halfWidth = (kTunerRight - kTunerLeft) / 2;
@@ -172,8 +172,8 @@ void Renderer::paintTuner(const Readout &readout) {
     }
 }
 
-// Столбики из «светодиодов»: зелёные внизу, жёлтые выше 60% шкалы,
-// красные выше 85%. Над каждым — колпачок пикового уровня.
+// Bars made of "LEDs": green at the bottom, yellow above 60% of the scale,
+// red above 85%. Each bar has a peak cap above it.
 void Renderer::paintBars(const BarBallistics &bars, float bottomDb) {
     const uint16_t green = to565(canvas_, kGreen);
     const uint16_t yellow = to565(canvas_, kYellow);
@@ -211,7 +211,7 @@ void Renderer::paintBars(const BarBallistics &bars, float bottomDb) {
     }
 }
 
-// Голубой треугольник над полосой самого сильного пика.
+// Cyan triangle above the band with the strongest peak.
 void Renderer::paintPeakMarker(const Spectrum &spectrum) {
     const int pitch = canvas_.width() / static_cast<int>(bandCount_);
     const int x = static_cast<int>(spectrum.peakBand) * pitch;
@@ -241,7 +241,7 @@ void Renderer::paintAxis() {
     }
 }
 
-// Плашка в правом верхнем углу спектра, пока кадр заморожен.
+// Badge in the top-right corner of the spectrum while the frame is frozen.
 void Renderer::paintHold() {
     const int w = 32;
     const int x = canvas_.width() - w - 2;

@@ -2,7 +2,7 @@
 
 #include "Orientation.h"
 
-// Ускорение в g в осях платы. Стоит на длинной грани: тяжесть вдоль X.
+// Acceleration in g, in board axes. Standing on a long edge: gravity along X.
 static const float kNormal[] = {1.0f, 0.0f, 0.0f};
 static const float kFlipped[] = {-1.0f, 0.0f, 0.0f};
 static const float kFlat[] = {0.0f, 0.0f, 1.0f};
@@ -14,7 +14,7 @@ static bool feed(Orientation &o, uint32_t now, const float *a) {
     return o.update(now, a[0], a[1], a[2]);
 }
 
-// Уже определилась: стоит как обычно.
+// Already settled: standing the normal way up.
 static Orientation settledNormal() {
     Orientation o;
     feed(o, 0, kNormal);
@@ -37,7 +37,7 @@ void test_first_clear_reading_applies_at_once(void) {
 void test_flat_reading_does_not_decide_anything(void) {
     Orientation o;
     TEST_ASSERT_FALSE(feed(o, 0, kFlat));
-    TEST_ASSERT_TRUE(feed(o, 20, kFlipped)); // первое ясное показание
+    TEST_ASSERT_TRUE(feed(o, 20, kFlipped)); // first clear reading
 }
 
 void test_turning_over_flips_after_it_settles(void) {
@@ -57,7 +57,7 @@ void test_turning_back_unflips(void) {
 void test_short_bump_does_not_flip(void) {
     Orientation o = settledNormal();
     feed(o, 1000, kFlipped);
-    feed(o, 1200, kNormal); // вернули раньше, чем показание устоялось
+    feed(o, 1200, kNormal); // turned back before the reading settled
     TEST_ASSERT_FALSE(feed(o, 1000 + kSettle, kFlipped));
     TEST_ASSERT_FALSE(feed(o, 1000 + kSettle + 100, kFlipped));
 }
@@ -78,7 +78,7 @@ void test_standing_upright_keeps_the_orientation(void) {
 
 void test_weak_tilt_is_not_enough(void) {
     Orientation o = settledNormal();
-    const float tilted[] = {-0.5f, 0.0f, 0.866f}; // на 60° от вертикали
+    const float tilted[] = {-0.5f, 0.0f, 0.866f}; // 60° off vertical
     feed(o, 1000, tilted);
     TEST_ASSERT_FALSE(feed(o, 1000 + kSettle, tilted));
 }
@@ -95,13 +95,13 @@ void test_shaking_is_ignored_and_restarts_the_wait(void) {
 void test_reset_lets_the_next_clear_reading_apply_at_once(void) {
     Orientation o = settledNormal();
     o.reset();
-    TEST_ASSERT_FALSE(o.flipped()); // до нового показания — прежняя
+    TEST_ASSERT_FALSE(o.flipped()); // unchanged until a new reading
     TEST_ASSERT_TRUE(feed(o, 5000, kFlipped));
 }
 
 void test_settling_survives_the_millis_rollover(void) {
     Orientation o = settledNormal();
-    const uint32_t start = 0xFFFFFF00u; // до переполнения 256 мс
+    const uint32_t start = 0xFFFFFF00u; // 256 ms before overflow
     feed(o, start, kFlipped);
     TEST_ASSERT_FALSE(feed(o, start + kSettle - 1, kFlipped));
     TEST_ASSERT_TRUE(feed(o, start + kSettle, kFlipped));

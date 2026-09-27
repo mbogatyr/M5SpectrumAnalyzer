@@ -4,12 +4,12 @@
 
 #include "BlockRing.h"
 
-// Непрерывная запись со встроенного микрофона StickS3 (кодек ES8311).
+// Continuous capture from the StickS3's built-in mic (ES8311 codec).
 //
-// Микрофон пишет блоками по 512 отсчётов в фоновой задаче M5Unified.
-// poll() держит его очередь полной, а window() склеивает четыре последних
-// готовых блока в окно для БПФ. Новое окно появляется каждые 32 мс и
-// перекрывается с предыдущим на три четверти.
+// The mic records in 512-sample blocks in an M5Unified background task.
+// poll() keeps its queue full, and window() joins the four latest
+// completed blocks into an FFT window. A new window is ready every 32 ms
+// and overlaps the previous one by three quarters.
 class AudioInput {
   public:
     static constexpr uint32_t kSampleRate = 16000;
@@ -17,21 +17,21 @@ class AudioInput {
     static constexpr size_t kWindowBlocks = 4;
     static constexpr size_t kWindowLen = kBlockLen * kWindowBlocks;
 
-    // Окно плюс два блока в очереди микрофона. Этого хватает: новый
-    // record() ставится только после того, как окно скопировано. Лишний
-    // блок — запас на случай, если порядок в poll()/window() изменится.
+    // The window plus two blocks in the mic queue. That is enough: a new
+    // record() is queued only after the window has been copied. The extra
+    // block is a margin in case the order in poll()/window() changes.
     static constexpr size_t kRingBlocks = kWindowBlocks + BlockRing::kInFlight + 1;
     static_assert(kRingBlocks >= kWindowBlocks + BlockRing::kInFlight,
-                  "микрофон начнёт писать в блок, который ещё читается");
+                  "the mic would write into a block that is still being read");
 
-    // Вызывать после M5.begin(). false — микрофона на плате нет.
+    // Call after M5.begin(). Returns false if the board has no mic.
     bool begin();
 
-    // Дозаполняет очередь микрофона. true — с прошлого window() дописан
-    // новый блок и окно можно анализировать.
+    // Tops up the mic queue. Returns true if a new block has been written
+    // since the last window() and the window can be analyzed.
     bool poll();
 
-    // kWindowLen свежих отсчётов, от старых к новым.
+    // The kWindowLen most recent samples, oldest first.
     const int16_t *window();
 
   private:

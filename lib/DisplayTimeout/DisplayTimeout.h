@@ -2,24 +2,24 @@
 
 #include <stdint.h>
 
-// Решает, когда гасить экран после простоя.
+// Decides when to turn the screen off after inactivity.
 //
-// Выключением питания не занимается: боковая кнопка StickS3 выключает
-// плату двойным щелчком сама, на уровне PMIC, без участия прошивки.
+// It does not handle power-off: a double press of the StickS3 side button
+// turns the board off on its own, in the PMIC, with no firmware involved.
 //
-// Как и весь lib/, железа не касается: на входе время и факт
-// нажатия, на выходе решение.
+// Like the rest of lib/, it does not touch the hardware: it takes the time
+// and whether there was a press, and returns a decision.
 class DisplayTimeout {
   public:
-    static constexpr uint32_t kIdleMs = 180000; // 3 минуты
+    static constexpr uint32_t kIdleMs = 180000; // 3 minutes
 
     explicit DisplayTimeout(uint32_t idleMs = kIdleMs);
 
-    // Задаёт точку отсчёта простоя. Вызывать один раз при старте.
+    // Sets the point idle time is measured from. Call once at startup.
     void begin(uint32_t nowMs);
 
-    // activity — была ли активность в этом такте: нажатие кнопки или
-    // звук, в котором анализатор нашёл пик.
+    // activity: whether there was activity this tick, either a button press
+    // or a sound in which the analyzer found a peak.
     bool shouldBeOn(uint32_t nowMs, bool activity);
 
   private:

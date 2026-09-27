@@ -4,12 +4,12 @@ bool AudioInput::begin() {
     auto cfg = M5.Mic.config();
     cfg.sample_rate = kSampleRate;
     cfg.over_sampling = 1;
-    // Шумовой фильтр M5Unified — это ФНЧ первого порядка, он завалил бы
-    // верх спектра.
+    // M5Unified's noise filter is a first-order low-pass; it would roll off
+    // the top of the spectrum.
     cfg.noise_filter_level = 0;
-    // M5Unified умножает отсчёты на magnification / (2 * over_sampling),
-    // так что 2 — это единичное усиление. Кодек ES8311 и так уже
-    // добавляет +32 дБ цифровой громкости.
+    // M5Unified multiplies samples by magnification / (2 * over_sampling),
+    // so 2 means unity gain. The ES8311 codec already applies +32 dB of
+    // digital volume on its own.
     cfg.magnification = 2;
     cfg.dma_buf_len = 256;
     cfg.dma_buf_count = 3;
@@ -19,8 +19,8 @@ bool AudioInput::begin() {
         return false;
     }
 
-    // Динамик и микрофон делят тактовые линии I2S; динамик отключён в
-    // M5.config(), end() здесь на случай, если его кто-то включит.
+    // The speaker and mic share the I2S clock lines. setup() disables the
+    // speaker via cfg.internal_spk; end() is here in case it gets enabled.
     M5.Speaker.end();
     return M5.Mic.begin();
 }

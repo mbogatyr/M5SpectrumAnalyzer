@@ -6,37 +6,37 @@
 #include "FrequencyReadout.h"
 #include "SpectrumAnalyzer.h"
 
-// Показание в шапке. Обновляется реже спектра, чтобы цифры успевали
-// прочитать.
+// The header readout. Updates less often than the spectrum so the digits
+// can be read.
 struct Readout {
-    bool valid = false; // false — тишина, вместо цифр прочерки
+    bool valid = false; // false: silence, dashes instead of digits
     char hz[12] = "";
     Note note{"", 0, 0};
 };
 
-// Рисует анализатор на встроенном дисплее StickS3, положенном набок
-// (240x135): шапка с частотой и тюнером, 48 столбиков, ось частот.
+// Draws the analyzer on the StickS3's built-in display turned on its side
+// (240x135): a header with frequency and tuner, 48 bars, a frequency axis.
 //
-// Кадр собирается целиком в спрайте и выталкивается одним вызовом, иначе
-// столбики мерцают. Спектр меняется каждый кадр, поэтому сравнения с
-// прошлым кадром здесь нет.
+// The whole frame is built in a sprite and pushed in a single call;
+// otherwise the bars flicker. The spectrum changes every frame, so there
+// is no comparison with the previous frame here.
 class Renderer {
   public:
-    // Высота шкалы столбиков в децибелах.
+    // Height of the bar scale, in decibels.
     static constexpr float kRangeDb = 60.0f;
 
-    // Вызывать после M5.begin(). Диапазон частот нужен для оси.
+    // Call after M5.begin(). The frequency range is needed for the axis.
     void begin(const AnalyzerConfig &config);
 
-    // bottomDb — уровень, с которого начинается столбик; шкала занимает
-    // kRangeDb вверх от него.
+    // bottomDb is the level where a bar starts; the scale spans kRangeDb
+    // upward from it.
     void draw(const BarBallistics &bars, const Spectrum &spectrum,
               const Readout &readout, float bottomDb, bool frozen);
 
-    // Переворачивает картинку на 180°, когда прибор повернули другой
-    // длинной стороной вниз. Спрайт 240x135 подходит к обеим альбомным
-    // ориентациям. Возвращает true, если ориентация сменилась и кадр надо
-    // перерисовать.
+    // Flips the image 180° when the device is turned with its other long
+    // side down. The 240x135 sprite fits both landscape orientations.
+    // Returns true if the orientation changed and the frame needs to be
+    // redrawn.
     bool setFlipped(bool flipped);
 
   private:

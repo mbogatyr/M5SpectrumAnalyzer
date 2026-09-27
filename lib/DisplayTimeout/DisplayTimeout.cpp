@@ -8,6 +8,6 @@ bool DisplayTimeout::shouldBeOn(uint32_t nowMs, bool activity) {
     if (activity) {
         lastActivityMs_ = nowMs;
     }
-    // Беззнаковое вычитание корректно переживает переполнение millis().
+    // Unsigned subtraction handles millis() wraparound correctly.
     return (nowMs - lastActivityMs_) < idleMs_;
 }

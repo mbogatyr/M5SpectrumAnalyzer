@@ -22,7 +22,7 @@ bool BlockRing::copyLatest(int16_t *dst, size_t blocks) const {
         return false;
     }
 
-    // Порядковые номера блоков окна: completed - blocks .. completed - 1.
+    // Window block sequence numbers: completed - blocks .. completed - 1.
     for (size_t i = 0; i < blocks; ++i) {
         const uint32_t seq = completed - blocks + i;
         const int16_t *src = samples_.data() + (seq % blockCount_) * blockLen_;

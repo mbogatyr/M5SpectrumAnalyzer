@@ -5,9 +5,9 @@
 
 #include "SpectrumAnalyzer.h"
 
-// Настройки по умолчанию: 16 кГц, 2048 точек, шаг бина 7.8125 Гц,
-// 48 полос от 50 Гц до 8 кГц. Номера полос и бинов в тестах посчитаны
-// вручную по формулам из комментариев.
+// Default settings: 16 kHz, 2048 points, 7.8125 Hz bin step, 48 bands
+// from 50 Hz to 8 kHz. Band and bin numbers in the tests were worked out
+// by hand from the formulas in the comments.
 
 static const int kN = 2048;
 static const float kRate = 16000.0f;
@@ -29,8 +29,8 @@ static void addSine(float hz, float amplitude) {
     }
 }
 
-// Детерминированный белый шум: линейный конгруэнтный генератор,
-// равномерно от -amplitude до +amplitude.
+// Deterministic white noise: a linear congruential generator,
+// uniform from -amplitude to +amplitude.
 static void addNoise(float amplitude) {
     uint32_t state = 12345;
     for (int i = 0; i < kN; ++i) {
@@ -53,7 +53,7 @@ static size_t loudestBand(const Spectrum &s) {
 void setUp(void) { fillSilence(); }
 void tearDown(void) {}
 
-// 500 Гц — ровно бин 64, без растекания между бинами.
+// 500 Hz is exactly bin 64, with no leakage between bins.
 void test_tone_on_a_bin_is_found_exactly(void) {
     SpectrumAnalyzer analyzer;
     addSine(500.0f, 16384.0f);
@@ -64,7 +64,7 @@ void test_tone_on_a_bin_is_found_exactly(void) {
     TEST_ASSERT_FLOAT_WITHIN(0.1f, 500.0f, s.peakHz);
 }
 
-// Полшкалы: 20*log10(0.5) = -6.02 дБFS.
+// Half scale: 20*log10(0.5) = -6.02 dBFS.
 void test_half_scale_tone_reads_minus_six_db(void) {
     SpectrumAnalyzer analyzer;
     addSine(500.0f, 16384.0f);
@@ -74,7 +74,7 @@ void test_half_scale_tone_reads_minus_six_db(void) {
     TEST_ASSERT_FLOAT_WITHIN(0.2f, -6.02f, s.peakDb);
 }
 
-// 440 Гц — это 56.32 бина: без интерполяции ответ был бы 437.5 Гц.
+// 440 Hz is 56.32 bins: without interpolation the answer would be 437.5 Hz.
 void test_concert_a_is_interpolated_between_bins(void) {
     SpectrumAnalyzer analyzer;
     addSine(440.0f, 8000.0f);
@@ -84,7 +84,7 @@ void test_concert_a_is_interpolated_between_bins(void) {
     TEST_ASSERT_FLOAT_WITHIN(0.5f, 440.0f, s.peakHz);
 }
 
-// 1234.5 Гц — это 158.02 бина, ещё одна точка вне сетки.
+// 1234.5 Hz is 158.02 bins, another point off the grid.
 void test_high_tone_off_the_grid_is_within_one_hz(void) {
     SpectrumAnalyzer analyzer;
     addSine(1234.5f, 8000.0f);
@@ -112,7 +112,7 @@ void test_silence_has_no_peak(void) {
     TEST_ASSERT_FALSE(s.hasPeak);
 }
 
-// Амплитуда 3 — это 20*log10(3/32768) = -80.8 дБFS, ниже порога -70.
+// Amplitude 3 is 20*log10(3/32768) = -80.8 dBFS, below the -70 threshold.
 void test_tone_below_the_silence_threshold_has_no_peak(void) {
     SpectrumAnalyzer analyzer;
     addSine(1000.0f, 3.0f);
@@ -122,7 +122,7 @@ void test_tone_below_the_silence_threshold_has_no_peak(void) {
     TEST_ASSERT_FALSE(s.hasPeak);
 }
 
-// Постоянная составляющая лежит в бине 0, а поиск начинается с 50 Гц.
+// The DC component sits in bin 0, and the search starts at 50 Hz.
 void test_dc_offset_is_not_a_peak(void) {
     SpectrumAnalyzer analyzer;
     for (int i = 0; i < kN; ++i) {
@@ -134,8 +134,8 @@ void test_dc_offset_is_not_a_peak(void) {
     TEST_ASSERT_FALSE(s.hasPeak);
 }
 
-// 440 Гц лежит на 0.32 бина от сетки: без поправки высоты по параболе
-// окно Ханна занизило бы уровень на 0.58 дБ.
+// 440 Hz is 0.32 bins off the grid: without the parabolic height correction
+// the Hann window would understate the level by 0.58 dB.
 void test_level_of_an_off_grid_tone_is_corrected(void) {
     SpectrumAnalyzer analyzer;
     addSine(440.0f, 16384.0f);
@@ -145,15 +145,15 @@ void test_level_of_an_off_grid_tone_is_corrected(void) {
     TEST_ASSERT_FLOAT_WITHIN(0.25f, -6.02f, s.peakDb);
 }
 
-// Громкий тон ниже 50 Гц в диапазон не попадает, но его склон
-// заходит в нижние бины. Склон — не вершина: пика быть не должно, и уж
-// тем более не должно быть выдуманной частоты. Раньше здесь получалось
-// 15.6 Гц при 43 Гц на входе и даже отрицательные частоты около 42.5 Гц.
+// A loud tone below 50 Hz is outside the range, but its slope reaches
+// into the lowest bins. A slope is not a summit: there must be no peak,
+// let alone a made-up frequency. This used to give 15.6 Hz for a 43 Hz
+// input, and even negative frequencies around 42.5 Hz.
 void test_loud_tone_just_below_the_range_is_not_a_peak(void) {
     SpectrumAnalyzer analyzer;
     for (float hz = 30.0f; hz <= 49.5f; hz += 0.05f) {
         fillSilence();
-        addSine(hz, 8231.0f); // -12 дБFS
+        addSine(hz, 8231.0f); // -12 dBFS
 
         const Spectrum &s = analyzer.analyze(samples);
 
@@ -166,8 +166,8 @@ void test_loud_tone_just_below_the_range_is_not_a_peak(void) {
     }
 }
 
-// 50.5 Гц — это 6.46 бина: вершина в бине 6, то есть на 46.9 Гц, ниже
-// диапазона, но уточнённая частота уже внутри него.
+// 50.5 Hz is 6.46 bins: the summit is in bin 6, i.e. at 46.9 Hz, below
+// the range, but the refined frequency is already inside it.
 void test_tone_just_above_the_lower_edge_is_found(void) {
     SpectrumAnalyzer analyzer;
     addSine(50.5f, 8231.0f);
@@ -178,9 +178,9 @@ void test_tone_just_above_the_lower_edge_is_found(void) {
     TEST_ASSERT_FLOAT_WITHIN(0.5f, 50.5f, s.peakHz);
 }
 
-// Шум заметно громче порога тишины (-70 дБ), но тона в нём нет: самый
-// громкий бин случаен, и показывать его частоту бессмысленно. Так на
-// плате выглядел шум 5-8 кГц, который прыгал между 7.1 и 7.4 кГц.
+// The noise is well above the silence threshold (-70 dB) but has no tone:
+// the loudest bin is random, so showing its frequency is pointless. On the
+// board this was the 5-8 kHz noise, whose "peak" jumped from 7.1 to 7.4 kHz.
 void test_broadband_noise_is_not_a_peak(void) {
     SpectrumAnalyzer analyzer;
     addNoise(1000.0f);
@@ -201,9 +201,9 @@ void test_tone_rising_out_of_noise_is_still_found(void) {
     TEST_ASSERT_FLOAT_WITHIN(1.0f, 1000.0f, s.peakHz);
 }
 
-// Гласная низкого голоса: основной тон 110 Гц, самая громкая — вторая
-// гармоника. Соседние гармоники в 14 бинах от пика не должны
-// засчитываться в его «фон».
+// A vowel in a low voice: the fundamental is 110 Hz, the loudest is the
+// second harmonic. Neighboring harmonics 14 bins from the peak must not
+// count toward its "background".
 void test_harmonics_of_a_low_voice_are_a_peak(void) {
     SpectrumAnalyzer analyzer;
     addNoise(200.0f);
@@ -219,7 +219,7 @@ void test_harmonics_of_a_low_voice_are_a_peak(void) {
     TEST_ASSERT_FLOAT_WITHIN(1.0f, 220.0f, s.peakHz);
 }
 
-// Частота вне диапазона 50 Гц - 8 кГц не должна становиться пиком.
+// A frequency outside the 50 Hz - 8 kHz range must not become the peak.
 void test_hum_below_the_range_does_not_steal_the_peak(void) {
     SpectrumAnalyzer analyzer;
     addSine(25.0f, 16000.0f);
@@ -230,7 +230,7 @@ void test_hum_below_the_range_does_not_steal_the_peak(void) {
     TEST_ASSERT_FLOAT_WITHIN(1.0f, 700.0f, s.peakHz);
 }
 
-// Полоса i: floor(48 * ln(f/50) / ln(160)). Для 1 кГц это 28.33 -> 28.
+// Band i: floor(48 * ln(f/50) / ln(160)). For 1 kHz that is 28.33 -> 28.
 void test_peak_band_is_where_the_frequency_sits_on_the_log_axis(void) {
     SpectrumAnalyzer analyzer;
     addSine(1000.0f, 8000.0f);
@@ -240,8 +240,8 @@ void test_peak_band_is_where_the_frequency_sits_on_the_log_axis(void) {
     TEST_ASSERT_EQUAL_UINT32(28, s.peakBand);
 }
 
-// Позиция 30.70 на шкале полос: номер полосы — целая часть, а не
-// округление (иначе была бы 31).
+// Position 30.70 on the band scale: the band number is the integer part,
+// not the rounded value (which would be 31).
 void test_peak_band_takes_the_whole_part_of_the_position(void) {
     SpectrumAnalyzer analyzer;
     addSine(1284.4f, 8000.0f);
@@ -251,8 +251,8 @@ void test_peak_band_takes_the_whole_part_of_the_position(void) {
     TEST_ASSERT_EQUAL_UINT32(30, s.peakBand);
 }
 
-// В белом шуме каждой полосе есть что показать: ни одна не остаётся
-// на полу, в том числе узкие полосы на низах.
+// In white noise every band has something to show: none stays at the
+// floor, including the narrow bands at the low end.
 void test_noise_lights_every_band(void) {
     SpectrumAnalyzer analyzer;
     addNoise(1000.0f);
@@ -276,9 +276,9 @@ void test_tone_lights_its_own_band_brightest(void) {
     TEST_ASSERT_TRUE(s.bandDb[28] - s.bandDb[45] > 40.0f);
 }
 
-// Полоса 1 — от 55.58 до 61.77 Гц, уже шага бина: собственного бина в
-// ней нет. Тон 58.6 Гц должен всё равно её зажечь, а не оставить
-// провалом в столбиках.
+// Band 1 spans 55.58 to 61.77 Hz, narrower than the bin step: no bin of
+// its own falls inside it. A 58.6 Hz tone must still light it up rather
+// than leave a gap among the bars.
 void test_band_narrower_than_a_bin_still_shows_its_tone(void) {
     SpectrumAnalyzer analyzer;
     addSine(58.6f, 8000.0f);

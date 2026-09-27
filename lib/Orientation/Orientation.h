@@ -2,31 +2,31 @@
 
 #include <stdint.h>
 
-// Решает по акселерометру, перевёрнут ли прибор на 180°.
+// Decides from the accelerometer whether the device is rotated 180°.
 //
-// Экран альбомный: когда прибор держат или ставят длинной стороной вниз,
-// тяжесть направлена поперёк платы, вдоль её короткой оси X. Знак X говорит,
-// какой из двух длинных сторон он смотрит вниз. Стоймя (тяжесть вдоль Y) и
-// плашмя на столе (вдоль Z) верх не определить — тогда ориентация остаётся
-// прежней.
+// The screen is landscape: when the device is held or stood on a long edge,
+// gravity points across the board, along its short X axis. The sign of X
+// tells which of the two long edges faces down. Standing on end (gravity
+// along Y) or lying flat on a table (along Z), the top cannot be determined,
+// so the orientation stays as it was.
 //
-// Как и всё в lib/, железа не касается: на входе время и ускорение, на
-// выходе решение.
+// Like everything in lib/, it does not touch the hardware: it takes the time
+// and acceleration, and returns a decision.
 class Orientation {
   public:
-    static constexpr float kMinG = 0.6f;       // проекция тяжести на X, g
-    static constexpr float kShakeG = 0.25f;    // допуск |a| от 1 g
-    static constexpr uint32_t kSettleMs = 400; // сколько держать новое положение
+    static constexpr float kMinG = 0.6f;       // gravity component along X, g
+    static constexpr float kShakeG = 0.25f;    // tolerance of |a| around 1 g
+    static constexpr uint32_t kSettleMs = 400; // hold time for a new position
 
-    // ax, ay, az — ускорение в g в осях платы (M5.Imu.getAccel).
-    // Возвращает flipped().
+    // ax, ay, az: acceleration in g along the board axes (M5.Imu.getAccel).
+    // Returns flipped().
     bool update(uint32_t nowMs, float ax, float ay, float az);
 
     bool flipped() const { return flipped_; }
 
-    // Следующее ясное показание применится сразу, без ожидания. Нужно
-    // при старте и после сна экрана: прибор могли перевернуть, пока
-    // экран был погашен.
+    // The next clear reading takes effect immediately, without waiting.
+    // Needed at startup and after the screen sleeps: the device may have
+    // been turned over while the screen was off.
     void reset();
 
   private:

@@ -2,8 +2,8 @@
 
 #include "BarBallistics.h"
 
-// Скорости в тестах свои, круглые, чтобы ожидания считались в уме:
-// столбик падает на 100 дБ/с, колпачок висит 500 мс и падает на 50 дБ/с.
+// The tests use their own round rates so the math can be done in your head:
+// the bar falls at 100 dB/s, the peak cap holds 500 ms, then falls at 50 dB/s.
 
 static const float kFloor = -120.0f;
 static const float kTolerance = 0.01f;
@@ -31,7 +31,7 @@ void test_bar_jumps_up_to_a_louder_level_at_once(void) {
     TEST_ASSERT_FLOAT_WITHIN(kTolerance, -20.0f, bars.level(0));
 }
 
-// 100 мс при 100 дБ/с — минус 10 дБ.
+// 100 ms at 100 dB/s is minus 10 dB.
 void test_bar_falls_at_the_release_rate(void) {
     BarBallistics bars = makeBars();
     feed(bars, -20.0f, 1000);
@@ -51,7 +51,7 @@ void test_louder_input_interrupts_the_fall(void) {
     TEST_ASSERT_FLOAT_WITHIN(kTolerance, -10.0f, bars.level(0));
 }
 
-// Через 400 мс столбик уже на -60, а колпачок ещё держит -20.
+// After 400 ms the bar is already at -60, but the peak cap still holds -20.
 void test_cap_holds_the_peak_while_the_bar_falls(void) {
     BarBallistics bars = makeBars();
     feed(bars, -20.0f, 0);
@@ -62,7 +62,7 @@ void test_cap_holds_the_peak_while_the_bar_falls(void) {
     TEST_ASSERT_FLOAT_WITHIN(kTolerance, -20.0f, bars.cap(0));
 }
 
-// Удержание кончилось на 500 мс, ещё 500 мс по 50 дБ/с — минус 25 дБ.
+// The hold ended at 500 ms; another 500 ms at 50 dB/s is minus 25 dB.
 void test_cap_falls_after_the_hold_time(void) {
     BarBallistics bars = makeBars();
     feed(bars, -20.0f, 0);
@@ -81,8 +81,8 @@ void test_rising_bar_pushes_the_cap_up(void) {
     TEST_ASSERT_FLOAT_WITHIN(kTolerance, -10.0f, bars.cap(0));
 }
 
-// Новый пик заново запускает удержание: через 400 мс после него
-// колпачок ещё не падает, хотя от первого пика прошло 700 мс.
+// A new peak restarts the hold: 400 ms after it the peak cap is not falling
+// yet, even though 700 ms have passed since the first peak.
 void test_new_peak_restarts_the_hold(void) {
     BarBallistics bars = makeBars();
     feed(bars, -20.0f, 0);
@@ -103,8 +103,8 @@ void test_long_silence_stops_at_the_floor(void) {
     TEST_ASSERT_FLOAT_WITHIN(kTolerance, kFloor, bars.cap(0));
 }
 
-// millis() переполняется примерно через 49 суток: с 2^32 - 50 до 50
-// прошло 100 мс, а не минус четыре миллиарда.
+// millis() overflows after about 49 days: from 2^32 - 50 to 50 is 100 ms,
+// not minus four billion.
 void test_fall_survives_millis_overflow(void) {
     BarBallistics bars = makeBars();
     feed(bars, -20.0f, 0xFFFFFFCEu);

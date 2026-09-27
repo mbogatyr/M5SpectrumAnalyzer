@@ -23,7 +23,7 @@ bool Orientation::update(uint32_t nowMs, float ax, float ay, float az) {
         pending_ = side;
         pendingSinceMs_ = nowMs;
     } else if (nowMs - pendingSinceMs_ >= kSettleMs) {
-        // Беззнаковое вычитание корректно переживает переполнение millis().
+        // Unsigned subtraction handles millis() wraparound correctly.
         flipped_ = wantFlipped;
         pending_ = Side::Unknown;
     }
@@ -36,7 +36,7 @@ void Orientation::reset() {
 }
 
 Orientation::Side Orientation::sideOf(float ax, float ay, float az) {
-    // Трясут или несут: в ускорении есть что-то кроме тяжести.
+    // Being shaken or carried: the acceleration contains more than gravity.
     const float g2 = ax * ax + ay * ay + az * az;
     const float lo = 1.0f - kShakeG;
     const float hi = 1.0f + kShakeG;
@@ -48,8 +48,8 @@ Orientation::Side Orientation::sideOf(float ax, float ay, float az) {
     if (x < kMinG || x < fabsf(ay) || x < fabsf(az)) {
         return Side::Unknown;
     }
-    // Normal соответствует setRotation(1) — KEY1 справа от экрана.
-    // Проверено на плате: при ax > 0 изображение стоит правильно, при
-    // ax < 0 — после переворота на 180°.
+    // Normal corresponds to setRotation(1), with KEY1 to the right of the
+    // screen. Verified on the board: with ax > 0 the image is upright, with
+    // ax < 0 it is upright after a 180° flip.
     return ax > 0 ? Side::Normal : Side::Flipped;
 }

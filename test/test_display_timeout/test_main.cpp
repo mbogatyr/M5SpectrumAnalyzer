@@ -2,7 +2,7 @@
 
 #include "DisplayTimeout.h"
 
-// По умолчанию экран гаснет после 180000 мс без нажатий.
+// By default the display turns off after 180000 ms without button presses.
 static DisplayTimeout startedTimeout() {
     DisplayTimeout timeout;
     timeout.begin(0);
@@ -41,7 +41,7 @@ void test_button_activity_wakes_a_sleeping_display(void) {
 
 void test_button_activity_restarts_the_countdown(void) {
     DisplayTimeout timeout = startedTimeout();
-    timeout.shouldBeOn(100000, true); // активность сдвигает точку отсчёта
+    timeout.shouldBeOn(100000, true); // activity moves the reference point
     TEST_ASSERT_TRUE(timeout.shouldBeOn(279999, false));
     TEST_ASSERT_FALSE(timeout.shouldBeOn(280000, false));
 }
@@ -55,9 +55,9 @@ void test_custom_timeout_is_respected(void) {
 
 void test_timeout_survives_the_millis_rollover(void) {
     DisplayTimeout timeout;
-    const uint32_t nearOverflow = 0xFFFFFF00u; // до переполнения 256 мс
+    const uint32_t nearOverflow = 0xFFFFFF00u; // 256 ms before overflow
     timeout.begin(nearOverflow);
-    // 100 мс спустя счётчик уже перескочил через ноль
+    // 100 ms later the counter has already wrapped past zero
     TEST_ASSERT_TRUE(timeout.shouldBeOn(nearOverflow + 100, false));
     TEST_ASSERT_FALSE(timeout.shouldBeOn(nearOverflow + 180000, false));
 }

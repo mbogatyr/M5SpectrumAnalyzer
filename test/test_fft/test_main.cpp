@@ -4,7 +4,7 @@
 
 #include "Fft.h"
 
-// Ожидаемые значения выведены руками из определения ДПФ:
+// Expected values are derived by hand from the DFT definition:
 // X[k] = sum x[n] * exp(-2*pi*i*k*n/N).
 
 static const float kPi = 3.14159265358979f;
@@ -40,8 +40,8 @@ void test_constant_lands_entirely_in_bin_zero(void) {
     }
 }
 
-// Импульс, сдвинутый на один отсчёт, при N=4 даёт exp(-i*pi*k/2):
-// 1, -i, -1, i. Ловит ошибки перестановки и знака поворота.
+// An impulse shifted by one sample, with N=4, gives exp(-i*pi*k/2):
+// 1, -i, -1, i. Catches permutation errors and a wrong twiddle sign.
 void test_impulse_at_one_rotates_clockwise(void) {
     Fft fft(4);
     float re[4] = {0, 1, 0, 0};
@@ -74,8 +74,8 @@ void test_cosine_on_a_bin_splits_into_two_real_peaks(void) {
     }
 }
 
-// sin = (e^{ix} - e^{-ix}) / 2i, поэтому в бине k лежит -i*N/2,
-// а в зеркальном +i*N/2. Обратное преобразование дало бы знаки наоборот.
+// sin = (e^{ix} - e^{-ix}) / 2i, so bin k holds -i*N/2 and its mirror bin
+// holds +i*N/2. The inverse transform would give the opposite signs.
 void test_sine_on_a_bin_puts_negative_imaginary_part_in_bin_k(void) {
     Fft fft(16);
     float re[16];
@@ -92,7 +92,7 @@ void test_sine_on_a_bin_puts_negative_imaginary_part_in_bin_k(void) {
     TEST_ASSERT_FLOAT_WITHIN(kTolerance, 0.0f, im[4]);
 }
 
-// Размер, который пойдёт в прошивку: одиннадцать стадий бабочек.
+// The size the firmware will use: eleven butterfly stages.
 void test_full_size_transform_finds_a_cosine_on_bin_100(void) {
     const int n = 2048;
     Fft fft(n);

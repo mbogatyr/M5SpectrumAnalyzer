@@ -6,22 +6,22 @@
 #include <vector>
 
 struct BallisticsConfig {
-    float releaseDbPerSec = 60.0f;   // скорость спада столбика
-    uint32_t capHoldMs = 500;        // сколько колпачок висит на максимуме
-    float capReleaseDbPerSec = 30.0f; // потом падает, медленнее столбика
+    float releaseDbPerSec = 60.0f;   // bar release rate
+    uint32_t capHoldMs = 500;        // peak cap hold time at the maximum
+    float capReleaseDbPerSec = 30.0f; // then falls, slower than the bar
 };
 
-// Поведение столбиков во времени: подъём мгновенный, спад плавный,
-// над каждым столбиком колпачок пикового уровня.
+// Bar behavior over time: instant attack, smooth release, and a peak cap
+// above each bar.
 //
-// Как и DisplayTimeout, железа не касается: время приходит снаружи,
-// поэтому тесты подставляют любые моменты без ожидания.
+// Like DisplayTimeout, it does not touch the hardware: time comes from
+// outside, so tests can plug in any moment without waiting.
 class BarBallistics {
   public:
     BarBallistics(size_t bandCount, float floorDb,
                   const BallisticsConfig &config = BallisticsConfig{});
 
-    // bandDb — свежие уровни полос, по одному на столбик.
+    // bandDb holds the latest band levels, one per bar.
     void update(const float *bandDb, uint32_t nowMs);
 
     float level(size_t band) const;
@@ -30,7 +30,7 @@ class BarBallistics {
   private:
     struct Band {
         float level;
-        float capPeakDb; // уровень, на котором колпачок был поднят
+        float capPeakDb; // level the peak cap was raised to
         uint32_t capSetMs;
         float cap;
     };

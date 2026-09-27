@@ -4,8 +4,8 @@
 
 #include "FrequencyReadout.h"
 
-// Частоты нот взяты из таблицы равномерно темперированного строя,
-// центы посчитаны вручную: 1200 * log2(f / f_ноты).
+// Note frequencies are taken from the equal temperament table; cents are
+// worked out by hand: 1200 * log2(f / f_note).
 
 static void assertNote(const char *name, int octave, int cents, float hz) {
     const Note note = noteFor(hz);
@@ -35,12 +35,12 @@ void test_slightly_sharp_a_reports_positive_cents(void) {
     assertNote("A", 4, 20, 445.0f);
 }
 
-// Пример с макета: 305 Гц ниже D#4 (311.13 Гц) на 34 цента.
+// Example from the mockup: 305 Hz is 34 cents below D#4 (311.13 Hz).
 void test_flat_tone_reports_negative_cents_of_the_nearest_note(void) {
     assertNote("D#", 4, -34, 305.0f);
 }
 
-// Октава меняется между B и C, а не между G# и A.
+// The octave changes between B and C, not between G# and A.
 void test_octave_number_changes_between_b_and_c(void) {
     assertNote("B", 3, 0, 246.94f);
     assertNote("C", 4, 0, 261.63f);
@@ -51,22 +51,22 @@ void test_low_notes_get_low_octaves(void) {
     assertNote("E", 2, 0, 82.41f);
 }
 
-// 49 центов выше A4 — ещё A4, 51 цент — уже A#4 на 49 центов ниже.
+// 49 cents above A4 is still A4; 51 cents is already A#4, 49 cents below.
 void test_nearest_note_switches_at_the_half_semitone(void) {
     assertNote("A", 4, 49, 452.63f);
     assertNote("A#", 4, -49, 453.15f);
 }
 
-// Недопустимая частота не должна давать индекс за пределами таблицы нот:
-// вместо ноты — пустое имя, которое рисуется как прочерк.
+// An invalid frequency must not yield an index outside the note table:
+// instead of a note it gives an empty name, which is drawn as a dash.
 void test_invalid_frequency_gives_no_note(void) {
     assertNote("", 0, 0, 0.0f);
     assertNote("", 0, 0, -440.0f);
     assertNote("", 0, 0, NAN);
 }
 
-// Ниже C-1 номер MIDI отрицательный: 7.717 Гц — это MIDI -1, B-2.
-// Остаток и октава должны считаться с округлением вниз, а не к нулю.
+// Below C-1 the MIDI number is negative: 7.717 Hz is MIDI -1, B-2.
+// The remainder and the octave must round down, not toward zero.
 void test_note_below_midi_zero_wraps_correctly(void) {
     assertNote("B", -2, 0, 7.717f);
 }
@@ -79,7 +79,7 @@ void test_hundreds_show_one_decimal(void) { assertFormat("440.3", 440.3f); }
 
 void test_thousands_show_whole_hertz(void) { assertFormat("1234", 1234.4f); }
 
-// Округление не должно давать пятую цифру: не "100.00" и не "1000.0".
+// Rounding must not produce a fifth digit: neither "100.00" nor "1000.0".
 void test_rounding_up_moves_to_the_next_format(void) {
     assertFormat("100.0", 99.996f);
     assertFormat("1000", 999.96f);

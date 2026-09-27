@@ -2,175 +2,195 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Анализатор спектра звука на M5StickS3: встроенный микрофон, БПФ, 48 столбиков
-на дисплее и частота самой сильной гармоники с нотой и тюнером. Внешней
-обвязки нет.
+An audio spectrum analyzer on the M5StickS3: the built-in microphone, an FFT,
+48 bars on the display, and the frequency of the strongest harmonic with its
+note and a tuner. No external hardware.
 
-## Команды
+Documentation, code comments and commit messages are in English. Commits up
+to `4d2a770` are in Russian.
 
-PlatformIO установлен не глобально, а официальным установщиком в venv. Бинарник
-лежит по пути `~/.platformio/penv/bin/pio` — в `PATH` его нет, вызывать надо
-полным путём.
+## Commands
+
+PlatformIO is not installed globally but into a venv by the official
+installer. The binary lives at `~/.platformio/penv/bin/pio`. It is not on
+`PATH`, so call it by its full path.
 
 ```bash
-~/.platformio/penv/bin/pio test -e native                      # юнит-тесты логики на хосте
-~/.platformio/penv/bin/pio test -e native -f test_fft          # один набор тестов
-~/.platformio/penv/bin/pio run -e sticks3                      # сборка прошивки
-~/.platformio/penv/bin/pio run -e sticks3 -t upload            # прошить плату
-~/.platformio/penv/bin/pio device monitor -e sticks3           # serial-монитор, 115200
+~/.platformio/penv/bin/pio test -e native                      # host-side unit tests of the logic
+~/.platformio/penv/bin/pio test -e native -f test_fft          # a single test suite
+~/.platformio/penv/bin/pio run -e sticks3                      # build the firmware
+~/.platformio/penv/bin/pio run -e sticks3 -t upload            # flash the board
+~/.platformio/penv/bin/pio device monitor -e sticks3           # serial monitor, 115200
 ```
 
-Первая сборка под `sticks3` тянет тулчейн xtensa-esp32s3 и занимает около восьми
-минут; последующие — секунды.
+The first `sticks3` build pulls the xtensa-esp32s3 toolchain and takes about
+eight minutes; later builds take seconds.
 
-## Архитектура
+## Architecture
 
-Деление на `lib/` и `src/` здесь не косметическое, а несущее:
+The split between `lib/` and `src/` is load-bearing, not cosmetic:
 
-- `lib/Fft/` — комплексное БПФ по основанию 2 на месте.
-- `lib/SpectrumAnalyzer/` — окно Ханна, БПФ, дБFS, поиск пика и сведение бинов
-  в логарифмические полосы.
-- `lib/FrequencyReadout/` — нота с центами и форматирование герц.
-- `lib/BarBallistics/` — спад столбиков и колпачки пикового уровня во времени.
-- `lib/BlockRing/` — кольцо блоков записи и склейка окна из готовых блоков.
-- `lib/DisplayTimeout/` — решает, когда гасить экран после простоя.
-- `lib/Orientation/` — по акселерометру решает, перевёрнут ли прибор на 180°
-  (перенесена из M5TVset вместе с тестами).
-- `src/` — всё, что знает про плату: `AudioInput` ведёт микрофон, `Renderer`
-  рисует на дисплее, `main.cpp` связывает логику с железом.
+- `lib/Fft/` — in-place complex radix-2 FFT.
+- `lib/SpectrumAnalyzer/` — Hann window, FFT, dBFS, peak search, and folding
+  bins into logarithmic bands.
+- `lib/FrequencyReadout/` — the note with its cents, and formatting hertz.
+- `lib/BarBallistics/` — bar decay and peak caps over time.
+- `lib/BlockRing/` — the ring of capture blocks, and stitching the finished
+  blocks into a window.
+- `lib/DisplayTimeout/` — decides when to turn the screen off after idling.
+- `lib/Orientation/` — decides from the accelerometer whether the device is
+  turned over by 180° (ported from M5TVset together with its tests).
+- `src/` — everything that knows about the board: `AudioInput` runs the
+  microphone, `Renderer` draws on the display, `main.cpp` ties the logic to
+  the hardware.
 
-Всё в `lib/` — чистый C++ без Arduino, M5Unified и вообще любых обращений
-к железу.
+Everything in `lib/` is plain C++ with no Arduino, no M5Unified, and no
+hardware access of any kind.
 
-Окружение `native` собирает только `lib/` (у PlatformIO `test_build_src`
-по умолчанию `no`), поэтому логика тестируется на Mac без прошивки платы.
-**Нельзя тащить зависимости от железа в `lib/` — это сломает тесты.** Всё,
-что требует M5Unified, живёт в `src/`. По той же причине БПФ своё, а не
-ESP-DSP: ESP-DSP есть во фреймворке, но только под ESP32.
+The `native` environment builds only `lib/` (PlatformIO's `test_build_src`
+defaults to `no`), so the logic is tested on the Mac without flashing the
+board. **Do not pull hardware dependencies into `lib/` — that breaks the
+tests.** Anything that needs M5Unified lives in `src/`. For the same reason
+the FFT is our own rather than ESP-DSP: ESP-DSP ships with the framework, but
+only for the ESP32 target.
 
-### Конвейер
+### Pipeline
 
-16 кГц, блоки по 512 отсчётов, окно 2048 (128 мс), новый кадр каждые 32 мс:
+16 kHz, 512-sample blocks, a 2048-sample window (128 ms), a new frame every
+32 ms:
 
-1. `AudioInput::poll()` держит очередь `M5.Mic.record()` полной — два блока
-   в работе. `BlockRing` по счётчику поставленных блоков знает, что всё старше
-   двух последних уже записано, и склеивает четыре готовых блока по порядку.
-   Пример `Mic_FFT` из M5Unified здесь ошибается: он анализирует начало
-   кольца, а не свежие отсчёты.
-2. `SpectrumAnalyzer::analyze()` — чистая функция от окна: рабочие буферы
-   выделяются в конструкторе, состояния между вызовами нет.
-3. `BarBallistics::update()` получает время снаружи, как `DisplayTimeout`.
-4. Цифры в шапке обновляются раз в 200 мс, спектр — каждый кадр.
+1. `AudioInput::poll()` keeps the `M5.Mic.record()` queue full, with two
+   blocks in flight. From the count of queued blocks, `BlockRing` knows that
+   everything older than the last two is finished, and stitches four finished
+   blocks together in order. M5Unified's `Mic_FFT` example gets this wrong: it
+   analyzes the start of the ring rather than the freshest samples.
+2. `SpectrumAnalyzer::analyze()` is a pure function of the window: its work
+   buffers are allocated in the constructor, and it keeps no state between
+   calls.
+3. `BarBallistics::update()` takes the time from outside, like
+   `DisplayTimeout`.
+4. The header digits update every 200 ms; the spectrum updates every frame.
 
-Бюджет на плате: анализ ~5 мс, отрисовка ~18 мс, ~31 к/с. Раз в секунду
-прошивка пишет в Serial строку `fps … analyze … draw … peak …` — по ней
-видно, укладывается ли кадр в 32 мс.
+Budget on the board: ~5 ms analysis, ~18 ms drawing, ~31 fps. Once a second
+the firmware prints a `fps … analyze … draw … peak …` line to Serial, which
+shows whether a frame fits in 32 ms.
 
-### Когда пик считается пиком
+### When a peak counts as a peak
 
-Пик — самая высокая **вершина** (бин не ниже обоих соседей), а не самый
-громкий бин: у края диапазона самым громким бывает склон тона, лежащего
-снаружи, и парабола через склон выдумывает частоту (тон 43 Гц давал 15,6 Гц,
-а около 42,5 Гц получались отрицательные частоты). Поиск начинается на бин
-ниже 50 Гц, в зачёт идёт только уточнённая частота внутри 50 Гц – 8 кГц.
+The peak is the highest **summit** (a bin no lower than either neighbor), not
+the loudest bin. At the edge of the range, the loudest bin can be the skirt of
+a tone lying outside it, and a parabola through a skirt invents a frequency: a
+43 Hz tone read as 15.6 Hz, and around 42.5 Hz the result went negative. The
+search starts one bin below 50 Hz, and only a refined frequency inside
+50 Hz – 8 kHz counts.
 
-Кроме того, пик должен быть громче `silenceDb` (-70 дБFS) **и** подниматься над
-медианой бинов в 4–12 бинах от него хотя бы на `minProminenceDb` (15 дБ).
-Последнее условие не лишнее: микрофон StickS3 даже в тихой комнате приносит широкий шум
-на 5–8 кГц около -64 дБ, и по одному порогу уровня прибор показывал бы там
-случайную частоту. Проверено, что это не наводка от дисплея (шум не меняется
-с погашенным экраном) и не артефакт АЦП у частоты Найквиста (при 48 кГц шум
-остаётся на тех же частотах). Порог уровня поднять нельзя: негромкая речь
-лежит на -50…-60 дБ.
+On top of that, the peak must be louder than `silenceDb` (-70 dBFS) **and**
+rise at least `minProminenceDb` (15 dB) above the median of the bins 4–12 bins
+away from it. The last condition is not redundant: even in a quiet room the
+StickS3 microphone brings in broadband noise at 5–8 kHz around -64 dB, and
+with a level threshold alone the device would show a random frequency there.
+It has been checked that this is not interference from the display (the noise
+does not change with the screen off) and not an ADC artifact near Nyquist (at
+48 kHz the noise stays at the same frequencies). The level threshold cannot be
+raised instead: quiet speech sits at -50…-60 dB.
 
-Для голоса и струнных самая сильная гармоника часто вторая или третья, так что
-нота может быть на октаву выше слышимой. Это осознанный выбор: показывается
-именно самый сильный пик.
+For voice and strings the strongest harmonic is often the second or third, so
+the note can be an octave above the one you hear. This is deliberate: the
+display shows the strongest peak, exactly as specified.
 
-### Отрисовка
+### Rendering
 
-`Renderer` собирает кадр целиком в `M5Canvas` (спрайт 240x135 в PSRAM) и
-выталкивает одним `pushSprite`. Рисование прямо на экране даёт видимое
-мерцание. Спектр меняется каждый кадр, поэтому сравнения с прошлым кадром нет.
+`Renderer` assembles the whole frame in an `M5Canvas` (a 240x135 sprite in
+PSRAM) and pushes it with a single `pushSprite`. Drawing straight to the
+screen flickers visibly. The spectrum changes every frame, so there is no
+comparison with the previous frame.
 
-Шрифты M5GFX — только ASCII: диез пишется `#`, центы — `ct`.
+M5GFX fonts are ASCII only: sharps are written as `#`, cents as `ct`.
 
-### Поворот экрана
+### Screen rotation
 
-Если прибор повернуть другой длинной стороной вниз, картинка переворачивается:
-`setRotation(1)` ↔ `setRotation(3)`. `main.cpp` раз на кадр анализа читает
-`M5.Imu.getAccel()` (BMI270; M5Unified сама включает его и переставляет оси
-под StickS3) и передаёт решение `Orientation` в `Renderer::setFlipped()`.
-Знак проверен на плате: при ax > 0 правильна ориентация 1, KEY1 справа от
-экрана. Решение принимается по знаку ax при |ax| ≥ 0,6 g и должно продержаться
-400 мс. Плашмя на столе и стоймя ориентация не меняется. После пробуждения
-экрана первое ясное показание применяется сразу.
+Turning the device so that its other long edge points down flips the
+picture: `setRotation(1)` ↔ `setRotation(3)`. Once per analysis frame
+`main.cpp` reads `M5.Imu.getAccel()` (a BMI270; M5Unified enables it and
+remaps its axes for the StickS3 on its own) and passes the `Orientation`
+decision to `Renderer::setFlipped()`. The sign is verified on the board: with
+ax > 0 rotation 1 is upright, with KEY1 to the right of the screen. The
+decision follows the sign of ax when |ax| ≥ 0.6 g and must hold for 400 ms.
+Lying flat on a table or standing on end does not change the orientation.
+After the screen wakes, the first clear reading applies immediately.
 
-## Особенности платы
+## Board specifics
 
-M5StickS3 — ESP32-S3-PICO-1-N8R8, 8 МБ flash, 8 МБ октального PSRAM, дисплей
-ST7789P3 135x240.
+M5StickS3 — ESP32-S3-PICO-1-N8R8, 8 MB flash, 8 MB octal PSRAM, ST7789P3
+135x240 display.
 
-- В PlatformIO **нет** board id `m5stack-sticks3`. Используется
-  `esp32-s3-devkitc-1` плюс `board_build.arduino.memory_type = qio_opi` и
-  разделы `default_8MB.csv`. Не «исправлять» это на несуществующий id.
-- USB нативный, без моста CH9102, поэтому порт на macOS называется
-  `/dev/cu.usbmodem*`, а не `/dev/cu.usbserial*`. Для вывода в Serial нужен
-  флаг `-DARDUINO_USB_CDC_ON_BOOT=1`, он уже прописан.
-- Кнопки заняты: KEY1 на G11 (`M5.BtnA`) — пауза, KEY2 на G12 (`M5.BtnB`) —
-  чувствительность. Свободны Grove (G9/G10) и HAT2 (G1-G8, G43, G44, G2, G3).
-- Микрофон подключён через кодек ES8311 по I2S; M5Unified настраивает его сам.
-  Кодек добавляет +32 дБ цифровой громкости, поэтому `magnification = 2`
-  (единичное усиление: M5Unified умножает на `magnification / (2 * over_sampling)`).
-  Первую секунду после включения ES8311 отдаёт нули — на экране это тишина.
-- Динамик сидит на тех же тактовых линиях I2S, что и микрофон, и включать
-  их одновременно нельзя. Поэтому `cfg.internal_spk = false`.
-- `noise_filter_level` у микрофона оставлен 0: это ФНЧ, он завалит верх спектра.
-- Основной тон ниже ~60–70 Гц тракт почти не передаёт. На плате такой звук
-  показывается частотой второй или третьей гармоники, а нота — на октаву (или
-  октаву с квинтой) выше. Это не ошибка вычислений, а честный самый сильный пик
-  того, что пришло с микрофона. Вероятные причины: срез низов у MEMS-микрофона
-  и фильтр постоянной составляющей в ES8311 (M5Unified пишет `0x1C = 0x6A`).
-  Динамиком ноутбука это не проверить: ниже ~100 Гц он почти не звучит.
+- PlatformIO has **no** `m5stack-sticks3` board id. The project uses
+  `esp32-s3-devkitc-1` plus `board_build.arduino.memory_type = qio_opi` and
+  the `default_8MB.csv` partitions. Do not "fix" this to a board id that does
+  not exist.
+- USB is native, with no CH9102 bridge, so on macOS the port is called
+  `/dev/cu.usbmodem*`, not `/dev/cu.usbserial*`. Serial output needs the
+  `-DARDUINO_USB_CDC_ON_BOOT=1` flag, which is already set.
+- The buttons are taken: KEY1 on G11 (`M5.BtnA`) is pause, KEY2 on G12
+  (`M5.BtnB`) is sensitivity. Grove (G9/G10) and HAT2 (G1-G8, G43, G44, G2,
+  G3) are free.
+- The microphone is connected through an ES8311 codec over I2S; M5Unified
+  configures it on its own. The codec adds +32 dB of digital volume, hence
+  `magnification = 2` (unity gain: M5Unified multiplies by
+  `magnification / (2 * over_sampling)`). For the first second after power-up
+  the ES8311 returns zeros, which shows on screen as silence.
+- The speaker shares the I2S clock lines with the microphone, and the two
+  cannot run at the same time. Hence `cfg.internal_spk = false`.
+- The microphone's `noise_filter_level` is left at 0: it is a low-pass filter
+  and would roll off the top of the spectrum.
+- The signal chain barely passes fundamentals below ~60–70 Hz. On the board
+  such a sound shows up at the frequency of its second or third harmonic, and
+  the note an octave (or an octave and a fifth) higher. This is not a
+  calculation error but the honest strongest peak of what came from the
+  microphone. Likely causes: the MEMS microphone's low-frequency roll-off and
+  the DC-removal filter in the ES8311 (M5Unified writes `0x1C = 0x6A`). A
+  laptop speaker cannot check this: below ~100 Hz it barely makes a sound.
 
-### Боковая кнопка обслуживается PMIC, а не прошивкой
+### The side button is handled by the PMIC, not the firmware
 
-| Действие | Результат |
+| Action | Result |
 |---|---|
-| Одиночное нажатие | Включение / сброс |
-| Двойное нажатие | Выключение питания |
-| Долгое удержание | Режим загрузки (мигает внутренний зелёный светодиод) |
+| Single press | Power on / reset |
+| Double press | Power off |
+| Long hold | Download mode (the internal green LED blinks) |
 
-Поэтому программного выключения в прошивке нет и **добавлять его не надо**:
-железо уже делает это надёжнее. Вдобавок у `M5.Power.powerOff()` на StickS3
-есть баг [M5Unified#235](https://github.com/m5stack/M5Unified/issues/235) —
-плата выключалась и тут же просыпалась по таймеру.
+That is why the firmware has no software power-off, and **none should be
+added**: the hardware already does it more reliably. On top of that,
+`M5.Power.powerOff()` on the StickS3 has bug
+[M5Unified#235](https://github.com/m5stack/M5Unified/issues/235): the board
+powered off and immediately woke up again on a timer.
 
-`M5.Power` не задаёт для StickS3 `_wakeupPin`, так что готового пробуждения
-по кнопке из deep sleep тоже нет — его пришлось бы настраивать вручную через
-`esp_sleep_enable_ext0_wakeup`.
+`M5.Power` does not set `_wakeupPin` for the StickS3, so there is no ready-made
+wake-up from deep sleep by button either; it would have to be set up by hand
+with `esp_sleep_enable_ext0_wakeup`.
 
-### Если заливка не проходит
+### If flashing fails
 
 `A fatal error occurred: Failed to connect to ESP32-S3: No serial data received.`
 
-Плата видна как `USB JTAG_serial debug unit` (VID 0x303A, PID 0x1001) — это
-встроенный USB-Serial-JTAG, а не CDC-порт (следствие `ARDUINO_USB_MODE=1`).
-Автосброс в режим загрузки через него срабатывает не всегда, и ни
-`--before usb_reset`, ни `--before no_reset` не помогают. Лечится только
-руками: долгое удержание боковой кнопки до мигания зелёного светодиода.
+The board shows up as `USB JTAG_serial debug unit` (VID 0x303A, PID 0x1001),
+the built-in USB-Serial-JTAG rather than a CDC port (a consequence of
+`ARDUINO_USB_MODE=1`). Auto-reset into download mode through it does not
+always work, and neither `--before usb_reset` nor `--before no_reset` helps.
+The only cure is manual: hold the side button until the green LED blinks.
 
-## Тесты
+## Tests
 
-Юнит-тестами покрыт весь `lib/`: БПФ и анализатор проверяются на
-синтезированных синусах и шуме, ожидаемые значения в тестах посчитаны вручную.
-Отрисовка и `AudioInput` проверяются на плате — писать тесты на `Renderer` не
-пытаться, это потребует мока всего LovyanGFX и ничего полезного не докажет.
+All of `lib/` is covered by unit tests: the FFT and the analyzer are checked
+against synthesized sines and noise, and the expected values in the tests are
+worked out by hand. Rendering and `AudioInput` are checked on the board. Do
+not try to write tests for `Renderer`: it would need a mock of all of
+LovyanGFX and would prove nothing useful.
 
-Сквозная проверка без телефона: сыграть тон из динамика Mac (`afplay` с WAV
-на 440 Гц) и смотреть строку `peak` в Serial.
+End-to-end check without a phone: play a tone through the Mac speaker
+(`afplay` with a 440 Hz WAV) and watch the `peak` line in Serial.
 
-`main` в тестах возвращает число провалов из `UNITY_END()`, а PlatformIO
-показывает ненулевой код выхода как номер сигнала. Строка вроде
-`Program received signal SIGALRM` при падающих тестах — артефакт отчёта, а не
-отдельная проблема; при зелёных тестах она исчезает.
+The test `main` returns the failure count from `UNITY_END()`, and PlatformIO
+shows a non-zero exit code as a signal number. A line like
+`Program received signal SIGALRM` when tests fail is an artifact of the
+report, not a separate problem; it disappears once the tests pass.

@@ -5,27 +5,27 @@
 
 #include <vector>
 
-// Прямое комплексное БПФ по основанию 2, на месте.
+// Forward complex radix-2 FFT, in place.
 //
-// Знак экспоненты отрицательный: X[k] = sum x[n] * exp(-2*pi*i*k*n/N),
-// без нормировки. Косинус амплитуды A на бине k даёт A*N/2 в бинах k и N-k.
+// Negative exponent: X[k] = sum x[n] * exp(-2*pi*i*k*n/N), unnormalized.
+// A cosine of amplitude A at bin k gives A*N/2 in bins k and N-k.
 //
-// Таблицы поворотных множителей и бит-реверса строятся один раз в
-// конструкторе, так что transform() не вызывает ни sin, ни cos и не
-// выделяет память.
+// The twiddle-factor and bit-reversal tables are built once in the
+// constructor, so transform() calls neither sin nor cos and does not
+// allocate memory.
 class Fft {
   public:
-    // n — степень двойки, не меньше 2.
+    // n is a power of two, at least 2.
     explicit Fft(size_t n);
 
     size_t size() const { return n_; }
 
-    // re и im — по n элементов. На выходе в них спектр.
+    // re and im hold n elements each. On return they contain the spectrum.
     void transform(float *re, float *im) const;
 
   private:
     size_t n_;
-    std::vector<float> cos_; // n/2 значений cos(2*pi*k/n)
-    std::vector<float> sin_; // n/2 значений sin(2*pi*k/n)
+    std::vector<float> cos_; // n/2 values of cos(2*pi*k/n)
+    std::vector<float> sin_; // n/2 values of sin(2*pi*k/n)
     std::vector<uint32_t> bitReversed_;
 };

@@ -12,13 +12,14 @@ namespace {
 
 constexpr uint8_t kBrightness = 120;
 
-// Цифры в шапке обновляются 5 раз в секунду, спектр — каждый кадр.
+// The header digits update 5 times a second, the spectrum every frame.
 constexpr uint32_t kReadoutPeriodMs = 200;
 
-// Нижний край шкалы столбиков для каждой ступени чувствительности.
-// Замерено на плате: тихая комната даёт -83 дБ в средних полосах,
-// тон из динамика ноутбука рядом — от -17 до -28 дБ. С нижней ступенью
-// тишина лежит на дне, а громкий тон не упирается в потолок (-20 дБ).
+// Bottom edge of the bar scale for each sensitivity step.
+// Measured on the board: a quiet room gives -83 dB in the mid bands; a tone
+// from a nearby laptop speaker gives -17 to -28 dB. At the least sensitive
+// step, silence sits on the floor and such a tone reaches the red zone under
+// the -20 dB ceiling, touching it only at its loudest.
 constexpr float kBottomDb[] = {-80.0f, -92.0f, -104.0f};
 constexpr size_t kSensitivitySteps = sizeof kBottomDb / sizeof kBottomDb[0];
 
@@ -45,8 +46,8 @@ bool frozen = false;
 bool needsPaint = false;
 size_t sensitivity = 0;
 
-// Раз в секунду строка в Serial: помогает подбирать пороги и следить,
-// укладывается ли кадр в 32 мс.
+// A line to Serial once a second: helps tune thresholds and check that a
+// frame fits within 32 ms.
 struct Stats {
     uint32_t sinceMs = 0;
     uint32_t frames = 0;
@@ -65,11 +66,11 @@ void setDisplayAwake(bool awake) {
         M5.Display.wakeup();
         M5.Display.setBrightness(kBrightness);
         needsPaint = true;
-        // Пока экран спал, прибор могли перевернуть.
+        // The device may have been turned over while the screen was asleep.
         orientation.reset();
     } else {
-        // Подсветка — главный потребитель, гасим её отдельно от
-        // усыпления самой панели.
+        // The backlight is the main power draw, so turn it off separately
+        // from putting the panel itself to sleep.
         M5.Display.setBrightness(0);
         M5.Display.sleep();
     }
@@ -96,8 +97,8 @@ void reportStats(uint32_t now) {
     if (now - stats.sinceMs < 1000) {
         return;
     }
-    // На паузе анализа нет, с погашенным экраном нет отрисовки, поэтому
-    // средние считаются каждое по своему счётчику.
+    // There is no analysis while paused and no drawing while the screen is
+    // off, so each average is divided by its own counter.
     const uint32_t analyses = stats.analyses ? stats.analyses : 1;
     const uint32_t frames = stats.frames ? stats.frames : 1;
     Serial.printf("fps %u  analyze %.1f ms  draw %.1f ms  ",
@@ -117,7 +118,7 @@ void reportStats(uint32_t now) {
 
 void setup() {
     auto cfg = M5.config();
-    // Динамик сидит на тех же линиях I2S, что и микрофон.
+    // The speaker sits on the same I2S lines as the mic.
     cfg.internal_spk = false;
     M5.begin(cfg);
     Serial.begin(115200);
@@ -142,12 +143,12 @@ void loop() {
 
     const uint32_t now = millis();
 
-    // Нажатие на погашенном экране только будит его.
+    // A press while the screen is off only wakes it.
     if (displayAwake) {
         if (M5.BtnA.wasPressed()) {
             frozen = !frozen;
-            // Цифры обновляются раз в 200 мс и могли отстать от спектра;
-            // на замороженном кадре они должны описывать именно его.
+            // The digits update every 200 ms and may lag behind the
+            // spectrum; on a frozen frame they must describe that very frame.
             if (frozen && latest) {
                 readout = makeReadout(*latest);
             }
@@ -159,16 +160,16 @@ void loop() {
         }
     }
 
-    // Микрофон опрашивается всегда, даже на паузе и с погашенным экраном:
-    // иначе очередь опустеет и в захвате появится дыра.
+    // The mic is always polled, even while paused or with the screen off:
+    // otherwise the queue runs dry and the capture gets a gap.
     const bool fresh = audio.poll();
     bool signal = false;
 
     if (fresh) {
-        // Акселерометр — раз на кадр анализа, около 31 раза в секунду:
-        // loop() крутится почти каждую миллисекунду, а решению Orientation
-        // всё равно нужно продержаться 400 мс. На паузе тоже: замороженный
-        // кадр перерисуется перевёрнутым.
+        // Read the accelerometer once per analysis frame, about 31 times a
+        // second: loop() runs almost every millisecond, and Orientation
+        // needs a new position to hold for 400 ms anyway. Also while
+        // paused: the frozen frame gets redrawn flipped.
         float ax, ay, az;
         if (displayAwake && M5.Imu.getAccel(&ax, &ay, &az)) {
             if (renderer.setFlipped(orientation.update(now, ax, ay, az))) {
@@ -193,8 +194,8 @@ void loop() {
         }
     }
 
-    // Выключение питания здесь не обрабатывается: боковая кнопка
-    // делает это сама двойным щелчком через PMIC.
+    // Power-off is not handled here: a double press of the side button
+    // does it on its own through the PMIC.
     const bool buttons = M5.BtnA.isPressed() || M5.BtnB.isPressed();
     setDisplayAwake(displayTimeout.shouldBeOn(now, buttons || signal));
 
