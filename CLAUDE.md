@@ -20,6 +20,7 @@ installer. The binary lives at `~/.platformio/penv/bin/pio`. It is not on
 ~/.platformio/penv/bin/pio test -e native -f test_fft          # a single test suite
 ~/.platformio/penv/bin/pio run -e sticks3                      # build the firmware
 ~/.platformio/penv/bin/pio run -e sticks3 -t upload            # flash the board
+~/.platformio/penv/bin/pio run -e sticks3 -t merged            # single image for M5Burner
 ~/.platformio/penv/bin/pio device monitor -e sticks3           # serial monitor, 115200
 ```
 
@@ -150,6 +151,32 @@ M5StickS3 — ESP32-S3-PICO-1-N8R8, 8 MB flash, 8 MB octal PSRAM, ST7789P3
   microphone. Likely causes: the MEMS microphone's low-frequency roll-off and
   the DC-removal filter in the ES8311 (M5Unified writes `0x1C = 0x6A`). A
   laptop speaker cannot check this: below ~100 Hz it barely makes a sound.
+
+### Publishing to M5Burner
+
+M5Burner writes the uploaded file starting at address 0x0, so it needs a full
+image. The app-only `firmware.bin` belongs at 0x10000; flashed at 0x0 it
+would overwrite the bootloader. `pio run -e sticks3 -t merged` (the
+`tools/merged_image.py` extra script) stitches the bootloader, partition
+table, `boot_app0` and the app into `.pio/build/sticks3/firmware-merged.bin`
+with esptool `merge_bin`. It takes the offsets and flash parameters (dio,
+80m, 8MB) from PlatformIO's own upload configuration, so the image matches
+what `upload` writes.
+
+How this was established: of six StickS3 firmwares on burner.m5stack.com,
+five, including the official UIFlow2.0, are full images. Each has the
+bootloader at 0x0 (header `e9 03 02 3f`), the partition table at 0x8000
+(`aa 50`) and the app at 0x10000. One was app-only. The merged image was
+verified by flashing it alone at 0x0 with esptool.
+
+v1.0.0 was uploaded on 2026-09-27 and went to review (Public). The upload form
+at burner.m5stack.com/developer/firmware/upload asks for:
+- name, category (Audio & Media) and supported devices (StickS3);
+- description and version description, both Markdown;
+- version and project link;
+- the `.bin` package;
+- visibility: Public needs review;
+- a cover image: the README screenshot works.
 
 ### The side button is handled by the PMIC, not the firmware
 

@@ -76,6 +76,11 @@ PlatformIO has no board definition for the StickS3, so `platformio.ini` uses
 If flashing fails with `Failed to connect to ESP32-S3: No serial data
 received`, hold the side button until the green LED blinks and flash again.
 
+To publish on [M5Burner](https://burner.m5stack.com/), build a single image
+with `pio run -e sticks3 -t merged`. The result is
+`.pio/build/sticks3/firmware-merged.bin`. M5Burner flashes it from address
+0x0, so it contains the bootloader and partition table as well as the app.
+
 To take a screenshot like the one above, run the following with the board
 connected. The script sends `s` over Serial, receives the current frame, and
 saves it as a PNG:
@@ -122,6 +127,7 @@ computer without the board:
 | `src/` | Board-specific code: microphone capture, rendering, main loop |
 | `test/` | Unity unit tests for everything in `lib/` |
 | `tools/screenshot.py` | Grabs the screen over USB and saves it as a PNG |
+| `tools/merged_image.py` | PlatformIO `merged` target: a single image for M5Burner |
 | `docs/` | The README screenshot |
 
 `lib/` is plain C++ with no Arduino or M5Unified dependencies. The `native`
