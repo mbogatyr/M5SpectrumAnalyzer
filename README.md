@@ -122,3 +122,7 @@ computer without the board:
 
 `lib/` is plain C++ with no Arduino or M5Unified dependencies. The `native`
 environment in `platformio.ini` builds and tests it on the host.
+
+## License
+
+[MIT](LICENSE)
