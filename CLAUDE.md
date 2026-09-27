@@ -39,7 +39,7 @@ The split between `lib/` and `src/` is load-bearing, not cosmetic:
   blocks into a window.
 - `lib/DisplayTimeout/` — decides when to turn the screen off after idling.
 - `lib/Orientation/` — decides from the accelerometer whether the device is
-  turned over by 180° (ported from M5TVset together with its tests).
+  turned over by 180°.
 - `src/` — everything that knows about the board: `AudioInput` runs the
   microphone, `Renderer` draws on the display, `main.cpp` ties the logic to
   the hardware.
