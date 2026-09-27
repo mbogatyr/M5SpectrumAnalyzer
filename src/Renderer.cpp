@@ -1,6 +1,8 @@
 #include "Renderer.h"
 
-#include "SevenSegment.h"
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 namespace {
 
@@ -10,221 +12,227 @@ struct Rgb {
     uint8_t r, g, b;
 };
 
-Rgb mix(const Rgb &a, const Rgb &b, float t) {
-    if (t < 0.0f) {
-        t = 0.0f;
-    } else if (t > 1.0f) {
-        t = 1.0f;
-    }
-    return Rgb{static_cast<uint8_t>(a.r + (b.r - a.r) * t),
-               static_cast<uint8_t>(a.g + (b.g - a.g) * t),
-               static_cast<uint8_t>(a.b + (b.b - a.b) * t)};
-}
-
 uint16_t to565(M5Canvas &canvas, const Rgb &c) {
     return canvas.color565(c.r, c.g, c.b);
 }
 
-// Ядро, середина, край, погашенное стекло и цвет ореола одной лампы.
-struct LampPalette {
-    Rgb core, mid, edge, dark, glow;
-};
+constexpr Rgb kGreen{40, 220, 90};
+constexpr Rgb kYellow{255, 196, 0};
+constexpr Rgb kRed{255, 59, 48};
+constexpr Rgb kCyan{58, 214, 255};
+constexpr Rgb kAmber{255, 176, 0};
+constexpr Rgb kText{255, 255, 255};
+constexpr Rgb kMuted{154, 154, 154};
+constexpr Rgb kDim{74, 74, 74};      // цифры в тишине
+constexpr Rgb kCapColor{216, 216, 216};
+constexpr Rgb kScaleLine{85, 85, 85};
+constexpr Rgb kScaleTick{102, 102, 102};
+constexpr Rgb kScaleCenter{153, 153, 153};
+constexpr Rgb kInTuneZone{18, 54, 29};
+constexpr Rgb kAxisTick{85, 85, 85};
+constexpr Rgb kAxisLabel{138, 138, 138};
 
-constexpr LampPalette kRedLamp{
-    {255, 148, 138}, {255, 59, 48}, {176, 26, 18}, {46, 16, 14}, {255, 59, 48}};
-constexpr LampPalette kYellowLamp{
-    {255, 236, 168}, {255, 196, 0}, {178, 128, 0}, {44, 36, 10}, {255, 196, 0}};
-constexpr LampPalette kGreenLamp{
-    {180, 255, 200}, {40, 220, 90}, {16, 134, 56}, {12, 44, 24}, {40, 220, 90}};
+// --- геометрия под экран 240x135 набок ---
 
-constexpr Rgb kHousing{26, 27, 32};
-constexpr Rgb kHousingHighlight{62, 64, 74};
-constexpr Rgb kHousingShadow{10, 10, 13};
-constexpr Rgb kVisorColor{16, 17, 21};
-constexpr Rgb kBlack{0, 0, 0};
-constexpr Rgb kWhite{255, 255, 255};
-constexpr Rgb kGlassReflection{120, 130, 145};
+constexpr int kReadoutX = 5;
+constexpr int kReadoutBaseline = 28;
 
-// --- геометрия под портретный экран 135x240 ---
+constexpr int kTunerLeft = 134;
+constexpr int kTunerRight = 234;
+constexpr int kNoteBaseline = 14;
+constexpr int kScaleY = 27;
+constexpr int kInTuneCents = 5;  // зелёная зона и зелёный цвет
+constexpr int kCloseCents = 20;  // до этого — жёлтый, дальше красный
 
-constexpr int kHousingX = 19;
-constexpr int kHousingW = 97;
-constexpr int kHousingY = 4;
-constexpr int kHousingH = 192;
-constexpr int kHousingRadius = 15;
+constexpr int kBarsTop = 42;
+constexpr int kBarsBottom = 122;
+constexpr int kBarsHeight = kBarsBottom - kBarsTop;
+constexpr int kSegmentH = 2;     // «светодиод» столбика
+constexpr int kSegmentPitch = 3; // сегмент плюс зазор
 
-constexpr int kSlotH = 64;
-constexpr int kLampR = 22;
-constexpr int kVisorH = 10;
-constexpr int kVisorOverhang = 6; // насколько козырёк шире лампы
+constexpr int kAxisTickY = 123;
+constexpr int kAxisBaseline = 133;
 
-constexpr int kGlowRings = 9;
-
-constexpr int kCountdownCenterY = 219;
-constexpr int kDigitW = 22;
-constexpr int kDigitH = 37;
-constexpr int kSegThickness = 5;
-constexpr int kDigitGap = 5;
-
-int lampTop(int index) { return kHousingY + 4 + index * kSlotH; }
-
-int lampCenterY(int index) { return lampTop(index) + kVisorH + kLampR + 2; }
-
-// --- примитивы светофора ---
-//
-// В 16-битном спрайте нет прозрачности, поэтому градиенты и ореолы
-// собраны из концентрических кругов с заранее посчитанным цветом:
-// смешивание идёт с заведомо известным фоном на этапе рисования.
-
-// Ореол вокруг горящей лампы. Рисуется до козырька, чтобы тот лёг сверху.
-void paintGlow(M5Canvas &canvas, int cx, int cy, const LampPalette &p) {
-    for (int k = kGlowRings; k >= 1; --k) {
-        const float strength =
-            0.30f * (1.0f - static_cast<float>(k) / (kGlowRings + 1));
-        canvas.fillCircle(cx, cy, kLampR + k,
-                          to565(canvas, mix(kHousing, p.glow, strength)));
+const Rgb &colorForCents(int cents) {
+    const int deviation = abs(cents);
+    if (deviation <= kInTuneCents) {
+        return kGreen;
     }
-}
-
-// Козырёк — трапеция из двух треугольников: снизу шире, сверху со скосом.
-void paintVisor(M5Canvas &canvas, int cx, int top) {
-    const uint16_t color = to565(canvas, kVisorColor);
-    const int halfW = kLampR + kVisorOverhang;
-    const int bottom = top + kVisorH;
-
-    canvas.fillTriangle(cx - halfW, bottom, cx - halfW + 3, top,
-                        cx + halfW - 3, top, color);
-    canvas.fillTriangle(cx - halfW, bottom, cx + halfW - 3, top, cx + halfW,
-                        bottom, color);
-}
-
-void paintLamp(M5Canvas &canvas, int cx, int cy, const LampPalette &p,
-               bool lit) {
-    canvas.fillCircle(cx, cy, kLampR + 2, to565(canvas, kHousingShadow));
-
-    for (int r = kLampR; r >= 1; --r) {
-        const float t = static_cast<float>(r) / kLampR;
-        const Rgb color =
-            lit ? ((t > 0.55f) ? mix(p.mid, p.edge, (t - 0.55f) / 0.45f)
-                               : mix(p.core, p.mid, t / 0.55f))
-                : mix(mix(p.dark, kBlack, 0.35f), p.dark, 1.0f - t);
-        canvas.fillCircle(cx, cy, r, to565(canvas, color));
-    }
-
-    // Блик: у горящей лампы яркий, у погашенной — тусклое отражение неба.
-    if (lit) {
-        canvas.fillCircle(cx - 7, cy - 8, 5,
-                          to565(canvas, mix(p.core, kWhite, 0.55f)));
-        canvas.fillCircle(cx - 8, cy - 9, 2, TFT_WHITE);
-    } else {
-        canvas.fillCircle(cx - 7, cy - 8, 4,
-                          to565(canvas, mix(p.dark, kGlassReflection, 0.35f)));
-    }
-}
-
-void paintDigit(M5Canvas &canvas, int x, int y, uint8_t value, uint16_t color) {
-    const uint8_t mask = segmentsForDigit(value);
-    const int t = kSegThickness;
-    const int half = (kDigitH - 3 * t) / 2;
-    const int innerW = kDigitW - 2 * t;
-
-    if (mask & SegA) canvas.fillRect(x + t, y, innerW, t, color);
-    if (mask & SegF) canvas.fillRect(x, y + t, t, half, color);
-    if (mask & SegB) canvas.fillRect(x + kDigitW - t, y + t, t, half, color);
-    if (mask & SegG) canvas.fillRect(x + t, y + t + half, innerW, t, color);
-    if (mask & SegE) canvas.fillRect(x, y + 2 * t + half, t, half, color);
-    if (mask & SegC)
-        canvas.fillRect(x + kDigitW - t, y + 2 * t + half, t, half, color);
-    if (mask & SegD) canvas.fillRect(x + t, y + kDigitH - t, innerW, t, color);
-}
-
-void paintCountdown(M5Canvas &canvas, uint8_t seconds, uint16_t color) {
-    const int digits = (seconds >= 10) ? 2 : 1;
-    const int totalW = digits * kDigitW + (digits - 1) * kDigitGap;
-    const int y = kCountdownCenterY - kDigitH / 2;
-    int x = (canvas.width() - totalW) / 2;
-
-    if (digits == 2) {
-        paintDigit(canvas, x, y, static_cast<uint8_t>(seconds / 10), color);
-        x += kDigitW + kDigitGap;
-    }
-    paintDigit(canvas, x, y, static_cast<uint8_t>(seconds % 10), color);
+    return (deviation <= kCloseCents) ? kYellow : kRed;
 }
 
 } // namespace
 
-void Renderer::begin() {
-    M5.Display.setRotation(0); // портрет: 135 в ширину, 240 в высоту
+void Renderer::begin(const AnalyzerConfig &config) {
+    minHz_ = config.minHz;
+    maxHz_ = config.maxHz;
+    bandCount_ = config.bandCount;
+
+    M5.Display.setRotation(1); // набок: 240 в ширину, 135 в высоту
     M5.Display.fillScreen(TFT_BLACK);
 
     canvas_.setColorDepth(16);
-    canvas_.setPsram(true); // 135*240*2 = 65 КБ, на StickS3 есть 8 МБ PSRAM
+    canvas_.setPsram(true); // 240*135*2 = 65 КБ, на StickS3 есть 8 МБ PSRAM
     canvas_.createSprite(M5.Display.width(), M5.Display.height());
 }
 
-void Renderer::invalidate() { hasPrevious_ = false; }
-
-void Renderer::draw(Phase phase, const Lamps &lamps, uint8_t secondsRemaining) {
-    const bool unchanged = hasPrevious_ && previousPhase_ == phase &&
-                           previousLamps_.red == lamps.red &&
-                           previousLamps_.yellow == lamps.yellow &&
-                           previousLamps_.green == lamps.green &&
-                           previousSeconds_ == secondsRemaining;
-    if (unchanged) {
-        return;
-    }
-
-    paint(phase, lamps, secondsRemaining);
-
-    hasPrevious_ = true;
-    previousPhase_ = phase;
-    previousLamps_ = lamps;
-    previousSeconds_ = secondsRemaining;
-}
-
-void Renderer::paint(Phase phase, const Lamps &lamps, uint8_t secondsRemaining) {
-    const int centerX = canvas_.width() / 2;
-
+void Renderer::draw(const BarBallistics &bars, const Spectrum &spectrum,
+                    const Readout &readout, float bottomDb, bool frozen) {
     canvas_.fillSprite(TFT_BLACK);
 
-    // тень под корпусом, сам корпус, фаска по верхней кромке
-    canvas_.fillRoundRect(kHousingX + 2, kHousingY + 3, kHousingW, kHousingH,
-                          kHousingRadius, to565(canvas_, kHousingShadow));
-    canvas_.fillRoundRect(kHousingX, kHousingY, kHousingW, kHousingH,
-                          kHousingRadius, to565(canvas_, kHousing));
-    canvas_.fillRect(kHousingX + 4, kHousingY + 2, kHousingW - 8, 1,
-                     to565(canvas_, kHousingHighlight));
-
-    const LampPalette *palettes[3] = {&kRedLamp, &kYellowLamp, &kGreenLamp};
-    const bool isLit[3] = {lamps.red, lamps.yellow, lamps.green};
-
-    for (int i = 0; i < 3; ++i) {
-        const int centerY = lampCenterY(i);
-
-        if (isLit[i]) {
-            paintGlow(canvas_, centerX, centerY, *palettes[i]);
-        }
-        paintVisor(canvas_, centerX, lampTop(i));
-        paintLamp(canvas_, centerX, centerY, *palettes[i], isLit[i]);
+    paintReadout(readout);
+    paintTuner(readout);
+    paintBars(bars, bottomDb);
+    if (spectrum.hasPeak) {
+        paintPeakMarker(spectrum);
     }
-
-    // Цифры окрашены по фазе, а не по лампам: иначе на погашенном такте
-    // мигающего зелёного они меняли бы цвет.
-    const LampPalette *accent = &kRedLamp;
-    switch (phase) {
-    case Phase::Red:
-        accent = &kRedLamp;
-        break;
-    case Phase::RedYellow:
-    case Phase::Yellow:
-        accent = &kYellowLamp;
-        break;
-    case Phase::Green:
-    case Phase::GreenBlink:
-        accent = &kGreenLamp;
-        break;
+    paintAxis();
+    if (frozen) {
+        paintHold();
     }
-    paintCountdown(canvas_, secondsRemaining, to565(canvas_, accent->mid));
 
     canvas_.pushSprite(0, 0);
+}
+
+int Renderer::xForHz(float hz) const {
+    return static_cast<int>(canvas_.width() * logf(hz / minHz_) /
+                            logf(maxHz_ / minHz_));
+}
+
+// Крупная частота слева сверху и маленькое «Hz» за ней.
+void Renderer::paintReadout(const Readout &readout) {
+    const char *text = readout.valid ? readout.hz : "---.-";
+
+    canvas_.setTextDatum(textdatum_t::baseline_left);
+    canvas_.setFont(&fonts::FreeSansBold18pt7b);
+    canvas_.setTextColor(to565(canvas_, readout.valid ? kText : kDim));
+    canvas_.drawString(text, kReadoutX, kReadoutBaseline);
+    const int width = canvas_.textWidth(text);
+
+    canvas_.setFont(&fonts::FreeSans9pt7b);
+    canvas_.setTextColor(to565(canvas_, readout.valid ? kMuted : kDim));
+    canvas_.drawString("Hz", kReadoutX + width + 4, kReadoutBaseline);
+}
+
+// Нота, центы и шкала ±50 центов со стрелкой — справа сверху.
+void Renderer::paintTuner(const Readout &readout) {
+    const int center = (kTunerLeft + kTunerRight) / 2;
+    const int halfWidth = (kTunerRight - kTunerLeft) / 2;
+    auto xForCents = [&](int cents) { return center + cents * halfWidth / 50; };
+
+    char note[8] = "--";
+    if (readout.valid) {
+        snprintf(note, sizeof note, "%s%d", readout.note.name,
+                 readout.note.octave);
+    }
+    canvas_.setTextDatum(textdatum_t::baseline_left);
+    canvas_.setFont(&fonts::FreeSansBold9pt7b);
+    canvas_.setTextColor(to565(canvas_, readout.valid ? kText : kDim));
+    canvas_.drawString(note, kTunerLeft, kNoteBaseline);
+
+    if (readout.valid) {
+        char cents[12];
+        snprintf(cents, sizeof cents, "%+d ct", readout.note.cents);
+        canvas_.setTextDatum(textdatum_t::baseline_right);
+        canvas_.setFont(&fonts::Font2);
+        canvas_.setTextColor(to565(canvas_, colorForCents(readout.note.cents)));
+        canvas_.drawString(cents, kTunerRight, kNoteBaseline);
+    }
+
+    const int zoneLeft = xForCents(-kInTuneCents);
+    canvas_.fillRect(zoneLeft, kScaleY - 4, xForCents(kInTuneCents) - zoneLeft,
+                     8, to565(canvas_, kInTuneZone));
+    canvas_.drawFastHLine(kTunerLeft, kScaleY, kTunerRight - kTunerLeft + 1,
+                          to565(canvas_, kScaleLine));
+    for (int cents = -50; cents <= 50; cents += 25) {
+        const int h = (cents == 0) ? 8 : 4;
+        canvas_.drawFastVLine(xForCents(cents), kScaleY - h / 2, h,
+                              to565(canvas_, cents == 0 ? kScaleCenter
+                                                        : kScaleTick));
+    }
+
+    if (readout.valid) {
+        canvas_.fillRect(xForCents(readout.note.cents) - 1, kScaleY - 8, 3, 15,
+                         to565(canvas_, colorForCents(readout.note.cents)));
+    }
+}
+
+// Столбики из «светодиодов»: зелёные внизу, жёлтые выше 60% шкалы,
+// красные выше 85%. Над каждым — колпачок пикового уровня.
+void Renderer::paintBars(const BarBallistics &bars, float bottomDb) {
+    const uint16_t green = to565(canvas_, kGreen);
+    const uint16_t yellow = to565(canvas_, kYellow);
+    const uint16_t red = to565(canvas_, kRed);
+    const uint16_t capColor = to565(canvas_, kCapColor);
+
+    const int pitch = canvas_.width() / static_cast<int>(bandCount_);
+    const int barW = pitch - 1;
+
+    auto heightFor = [&](float db) {
+        const float fraction = (db - bottomDb) / kRangeDb;
+        if (fraction <= 0.0f) {
+            return 0;
+        }
+        return (fraction >= 1.0f) ? kBarsHeight
+                                  : static_cast<int>(fraction * kBarsHeight);
+    };
+
+    for (size_t i = 0; i < bandCount_; ++i) {
+        const int x = static_cast<int>(i) * pitch;
+        const int h = heightFor(bars.level(i));
+
+        for (int y = 0; y + kSegmentH <= h; y += kSegmentPitch) {
+            const int percent = y * 100 / kBarsHeight;
+            const uint16_t color =
+                (percent < 60) ? green : (percent < 85) ? yellow : red;
+            canvas_.fillRect(x, kBarsBottom - y - kSegmentH, barW, kSegmentH,
+                             color);
+        }
+
+        const int cap = heightFor(bars.cap(i));
+        if (cap > 0) {
+            canvas_.drawFastHLine(x, kBarsBottom - cap, barW, capColor);
+        }
+    }
+}
+
+// Голубой треугольник над полосой самого сильного пика.
+void Renderer::paintPeakMarker(const Spectrum &spectrum) {
+    const int pitch = canvas_.width() / static_cast<int>(bandCount_);
+    const int x = static_cast<int>(spectrum.peakBand) * pitch;
+    canvas_.fillTriangle(x - 1, kBarsTop - 5, x + pitch, kBarsTop - 5,
+                         x + pitch / 2, kBarsTop - 1, to565(canvas_, kCyan));
+}
+
+void Renderer::paintAxis() {
+    const uint16_t tick = to565(canvas_, kAxisTick);
+    canvas_.setFont(&fonts::Font0);
+    canvas_.setTextColor(to565(canvas_, kAxisLabel));
+
+    canvas_.setTextDatum(textdatum_t::baseline_left);
+    canvas_.drawString("50", 1, kAxisBaseline);
+    canvas_.setTextDatum(textdatum_t::baseline_right);
+    canvas_.drawString("8k", canvas_.width() - 1, kAxisBaseline);
+
+    canvas_.setTextDatum(textdatum_t::baseline_center);
+    const struct {
+        float hz;
+        const char *label;
+    } kMarks[] = {{100.0f, "100"}, {1000.0f, "1k"}, {5000.0f, "5k"}};
+    for (const auto &mark : kMarks) {
+        const int x = xForHz(mark.hz);
+        canvas_.drawFastVLine(x, kAxisTickY, 3, tick);
+        canvas_.drawString(mark.label, x, kAxisBaseline);
+    }
+}
+
+// Плашка в правом верхнем углу спектра, пока кадр заморожен.
+void Renderer::paintHold() {
+    const int w = 32;
+    const int x = canvas_.width() - w - 2;
+    canvas_.fillRoundRect(x, kBarsTop + 1, w, 11, 2, to565(canvas_, kAmber));
+    canvas_.setFont(&fonts::Font0);
+    canvas_.setTextDatum(textdatum_t::middle_center);
+    canvas_.setTextColor(TFT_BLACK);
+    canvas_.drawString("HOLD", x + w / 2, kBarsTop + 7);
 }
