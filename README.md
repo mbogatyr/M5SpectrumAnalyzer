@@ -1,6 +1,6 @@
 # M5SpectrumAnalyzer
 
-A real-time audio spectrum analyzer for the M5StickS3.
+A real-time audio spectrum analyzer for the [M5StickS3](https://docs.m5stack.com/en/core/StickS3).
 It listens through the built-in microphone, runs an FFT, and draws the
 spectrum as 48 bars. The header shows the frequency of the strongest harmonic,
 its musical note, and a tuner scale. No external hardware needed.
