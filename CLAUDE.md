@@ -190,6 +190,14 @@ LovyanGFX and would prove nothing useful.
 End-to-end check without a phone: play a tone through the Mac speaker
 (`afplay` with a 440 Hz WAV) and watch the `peak` line in Serial.
 
+`~/.platformio/penv/bin/python tools/screenshot.py docs/screenshot.png` grabs
+the current frame over Serial: the firmware answers an `s` with a
+`SNAP <w> <h>` line and the raw sprite, and the script writes a PNG scaled up
+3x. The README screenshot was taken this way, with a chord playing through the
+Mac speaker. Take a new one whenever the screen changes. The 65 KB transfer
+takes longer than the mic queue holds, so the audio has a short gap right after
+each screenshot.
+
 The test `main` returns the failure count from `UNITY_END()`, and PlatformIO
 shows a non-zero exit code as a signal number. A line like
 `Program received signal SIGALRM` when tests fail is an artifact of the

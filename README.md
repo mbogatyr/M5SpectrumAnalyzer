@@ -5,17 +5,11 @@ It listens through the built-in microphone, runs an FFT, and draws the
 spectrum as 48 bars. The header shows the frequency of the strongest harmonic,
 its musical note, and a tuner scale. No external hardware needed.
 
-```
-┌────────────────────────────────────────────────┐
-│ 440.1 Hz                    A4           +2 ct │
-│                        ├────┼────┼█───┼────┤   │
-│                    ▼                           │
-│                    ▆                           │
-│                    █     ▆   ▁                 │
-│ ▂▁▁▂▁▁▂▁▁▂▁▁▂▁▁▂▁▁▇█▇▂▁▁▄█▄▂▃█▃▁▅▂▁▁▂▁▁▂▃▄▃▄▃▄ │
-│ 50   100                  1k            5k  8k │
-└────────────────────────────────────────────────┘
-```
+![The analyzer showing a seven-note chord](docs/screenshot.png)
+
+*A seven-note chord (G3 to G7) played from a laptop speaker. The loudest note,
+A4, is read as 440.1 Hz and 0 cents. The image is a frame taken from the
+firmware with `tools/screenshot.py`, scaled up 3x.*
 
 ## Features
 
@@ -82,6 +76,14 @@ PlatformIO has no board definition for the StickS3, so `platformio.ini` uses
 If flashing fails with `Failed to connect to ESP32-S3: No serial data
 received`, hold the side button until the green LED blinks and flash again.
 
+To take a screenshot like the one above, run the following with the board
+connected. The script sends `s` over Serial, receives the current frame, and
+saves it as a PNG:
+
+```bash
+python tools/screenshot.py docs/screenshot.png   # needs pyserial
+```
+
 Once a second the firmware prints a status line to Serial:
 
 ```
@@ -119,6 +121,8 @@ computer without the board:
 | `lib/DisplayTimeout/` | When to turn the screen off |
 | `src/` | Board-specific code: microphone capture, rendering, main loop |
 | `test/` | Unity unit tests for everything in `lib/` |
+| `tools/screenshot.py` | Grabs the screen over USB and saves it as a PNG |
+| `docs/` | The README screenshot |
 
 `lib/` is plain C++ with no Arduino or M5Unified dependencies. The `native`
 environment in `platformio.ini` builds and tests it on the host.

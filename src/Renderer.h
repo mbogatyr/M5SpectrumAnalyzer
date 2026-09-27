@@ -39,6 +39,13 @@ class Renderer {
     // redrawn.
     bool setFlipped(bool flipped);
 
+    // Writes the last drawn frame to out: a "SNAP <width> <height>" line,
+    // then width*height RGB565 pixels, two bytes each, high byte first.
+    // tools/screenshot.py turns this into a PNG. The frame is taken from
+    // the sprite, so it comes out upright whichever way the screen is
+    // flipped.
+    void writeSnapshot(Print &out);
+
   private:
     void paintReadout(const Readout &readout);
     void paintTuner(const Readout &readout);

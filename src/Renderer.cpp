@@ -100,6 +100,15 @@ void Renderer::draw(const BarBallistics &bars, const Spectrum &spectrum,
     canvas_.pushSprite(0, 0);
 }
 
+void Renderer::writeSnapshot(Print &out) {
+    out.printf("SNAP %d %d\n", canvas_.width(), canvas_.height());
+    // A 16-bit LovyanGFX sprite already keeps its pixels byte-swapped for
+    // SPI, i.e. high byte first, so the buffer goes out as it is.
+    out.write(static_cast<const uint8_t *>(canvas_.getBuffer()),
+              canvas_.width() * canvas_.height() * 2);
+    out.flush();
+}
+
 bool Renderer::setFlipped(bool flipped) {
     if (flipped == flipped_) {
         return false;

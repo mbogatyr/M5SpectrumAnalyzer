@@ -204,6 +204,13 @@ void loop() {
         needsPaint = false;
     }
 
+    // tools/screenshot.py sends 's' to grab the screen for the README. The
+    // 65 KB transfer takes longer than the mic queue holds, so the audio
+    // has a short gap right after a screenshot.
+    if (Serial.available() > 0 && Serial.read() == 's' && latest) {
+        renderer.writeSnapshot(Serial);
+    }
+
     reportStats(now);
 
     if (!fresh) {
